@@ -31,9 +31,15 @@ const CHR_DATE_OF_BIRTH = uuid16(0x2a85); // User Data Service 0x181C
 const CHR_GENDER = uuid16(0x2a8c); // User Data Service 0x181C
 const CHR_HEIGHT = uuid16(0x2a8e); // User Data Service 0x181C
 
-// Beurer vendor characteristics on service 0xFFF0, proven from the #229 capture.
-const CHR_VENDOR_USER_LIST = uuid16(0xfff2); // notify: one frame per user slot
-const CHR_VENDOR_ACTIVITY = uuid16(0xfff3); // read/write: activity level
+// Beurer vendor characteristics on service 0xFFF0, proven from the #229 capture (BF788/BF720).
+const CHR_VENDOR_USER_LIST = uuid16(0xfff2); // notify: one frame per user slot (BF720 service 0xFFF0)
+const CHR_VENDOR_ACTIVITY = uuid16(0xfff3); // read/write: activity level (BF720 service 0xFFF0)
+
+// BF500-specific vendor characteristics on service 0xFFFF (openScale StandardBeurerSanitasHandler).
+// On the BF500 the slot offsets are shifted: 0xFFF1=user-list, 0xFFF2=activity, 0xFFF4=take-measurement.
+// Do NOT conflate with the BF720's 0xFFF2 user-list: they live on different services (0xFFFF vs 0xFFF0).
+const CHR_BF500_VENDOR_USER_LIST = uuid16(0xfff1);
+const CHR_BF500_TAKE_MEASUREMENT = uuid16(0xfff4);
 
 /** Render bytes as spaced lowercase hex for the diagnostic log lines. */
 const hex = (b: Buffer | number[]): string =>
@@ -204,9 +210,12 @@ export class BeurerBf720Adapter implements ScaleAdapterCore, GattWiring, MultiCh
     { uuid: CHR_BODY_COMPOSITION, type: 'notify' },
     { uuid: CHR_USER_CONTROL_POINT, type: 'notify' },
     { uuid: CHR_DB_CHANGE_INCREMENT, type: 'notify', optional: true },
-    // Vendor user-slot list. The scale answers the FFF2=00 command with one
-    // frame per stored user, which the app requests on every connection (#229).
+    // BF720/BF788: vendor user-slot list on 0xFFF2 (service 0xFFF0). The scale
+    // answers the FFF2=00 command with one frame per stored user (#229).
     { uuid: CHR_VENDOR_USER_LIST, type: 'notify', optional: true },
+    // BF500: vendor user-slot list on 0xFFF1 (service 0xFFFF). Same frame format,
+    // different characteristic. Both are optional; only one will be present.
+    { uuid: CHR_BF500_VENDOR_USER_LIST, type: 'notify', optional: true },
     { uuid: CHR_CURRENT_TIME, type: 'write' },
   ];
 
@@ -229,7 +238,17 @@ export class BeurerBf720Adapter implements ScaleAdapterCore, GattWiring, MultiCh
   private registerNewUser = false;
   /** users[].beurer_provision: write the profile into an empty scale (#229). */
   private provision = false;
-  /** Vendor user-slot records seen on 0xFFF2 this session. */
+  /**
+   * True when the matched device advertised "bf500" in its name.
+   *
+   * The BF500 uses a different vendor service (0xFFFF) than the BF720 (0xFFF0),
+   * with different characteristic offsets: user-list=0xFFF1, activity=0xFFF2,
+   * measurement-trigger=0xFFF4. Conflating them causes the wrong characteristic
+   * to be written before consent (activity gets a 0x00 that invalidates it) and
+   * the measurement trigger to be skipped after consent.
+   */
+  private isBf500 = false;
+  /** Vendor user-slot records seen on 0xFFF2 (BF720) or 0xFFF1 (BF500) this session. */
   private userSlotsSeen = 0;
   /** Whether the vendor user list terminated (or reported an error) this session. */
   private userListAnswered = false;
@@ -301,6 +320,8 @@ export class BeurerBf720Adapter implements ScaleAdapterCore, GattWiring, MultiCh
       name.includes('bf950') ||
       name.includes('bf915')
     ) {
+      // Track BF500 for vendor-characteristic routing in onConnected/syncUserProfile.
+      this.isBf500 = name.includes('bf500');
       return true;
     }
     // Everything below is the NAMELESS fallback: Linux auto-discovery and the
@@ -395,9 +416,16 @@ export class BeurerBf720Adapter implements ScaleAdapterCore, GattWiring, MultiCh
     // the time write and the consent write, and the scale answers with one
     // frame per stored user (#229 capture). Purely informational for us, but it
     // keeps our sequence identical to the app's and names the slots in the log.
-    if (ctx.availableChars.has(CHR_VENDOR_USER_LIST)) {
+    //
+    // The BF500 uses service 0xFFFF with user-list=0xFFF1 and activity=0xFFF2,
+    // the opposite of the BF720 (service 0xFFF0, user-list=0xFFF2, activity=0xFFF3).
+    // Writing 0x00 to the BF500's activity characteristic (0xFFF2) would set an
+    // invalid activity level and can cause OPERATION_FAILED on the subsequent
+    // consent, so the query must target the correct characteristic per model.
+    const vendorUserListChr = this.isBf500 ? CHR_BF500_VENDOR_USER_LIST : CHR_VENDOR_USER_LIST;
+    if (ctx.availableChars.has(vendorUserListChr)) {
       try {
-        await ctx.write(CHR_VENDOR_USER_LIST, [0x00], true);
+        await ctx.write(vendorUserListChr, [0x00], true);
       } catch (err) {
         bleLog.debug(`Beurer BF720: vendor user-list query failed: ${String(err)}`);
       }
@@ -526,6 +554,20 @@ export class BeurerBf720Adapter implements ScaleAdapterCore, GattWiring, MultiCh
           `written, ${provisionedNote}, change increment ${increment}); ` +
           'scale can complete the measurement',
       );
+
+      // BF500 requires an explicit measurement trigger after the profile commit.
+      // openScale's StandardBeurerSanitasHandler writes 0x00 to 0xFFF4
+      // (chrTakeMeasurement) from onRequestMeasurement() after a successful
+      // consent. The BF720/BF788 deliver measurements autonomously, but the BF500
+      // does not; without this write it stays silent even with a valid consent.
+      if (this.isBf500 && session === this.session && ctx.availableChars.has(CHR_BF500_TAKE_MEASUREMENT)) {
+        try {
+          await ctx.write(CHR_BF500_TAKE_MEASUREMENT, [0x00], true);
+          bleLog.debug('Beurer BF720: BF500 measurement trigger sent (0xFFF4)');
+        } catch (err) {
+          bleLog.debug(`Beurer BF720: BF500 measurement trigger rejected: ${String(err)}`);
+        }
+      }
     } catch (err) {
       // Never fail the reading over this: on firmware that does not need the
       // commit, the measurement arrives regardless.
@@ -637,7 +679,7 @@ export class BeurerBf720Adapter implements ScaleAdapterCore, GattWiring, MultiCh
       this.handleUcpResponse(data);
       return null;
     }
-    if (charUuid === CHR_VENDOR_USER_LIST) {
+    if (charUuid === CHR_VENDOR_USER_LIST || charUuid === CHR_BF500_VENDOR_USER_LIST) {
       this.handleUserListFrame(data);
       return null;
     }
