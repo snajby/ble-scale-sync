@@ -33,7 +33,13 @@ const CHR_VENDOR_ACTIVITY = uuid16(0xfff3); // read/write: activity level (BF720
 // On the BF500 the slot offsets are shifted: 0xFFF1=user-list, 0xFFF2=activity, 0xFFF4=take-measurement.
 // Do NOT conflate with the BF720's 0xFFF2 user-list: they live on different services (0xFFFF vs 0xFFF0).
 const CHR_BF500_VENDOR_USER_LIST = uuid16(0xfff1);
+// Measurement trigger shared by the BF500 (service 0xFFFF) and the BF600-layout BF720 (service 0xFFF0).
+// openScale StandardBeurerSanitasHandler.onRequestMeasurement() writes 0x00 here after writeUserDataToScale().
 const CHR_BF500_TAKE_MEASUREMENT = uuid16(0xfff4);
+// BF105/BF720 measurement trigger on service 0xFFFF (openScale BEURER_BF105 profile, chrTakeMeasurement=0x0006).
+// The BF720 maps to the BF105 profile in openScale: it does NOT deliver measurements autonomously; it waits
+// for this write after the profile commit. Without it the scale stays on "USE APP" indefinitely.
+const CHR_BF105_TAKE_MEASUREMENT = uuid16(0x0006);
 
 /** Render bytes as spaced lowercase hex for the diagnostic log lines. */
 const hex = (b: Buffer | number[]): string =>
@@ -414,16 +420,16 @@ export class BeurerBf720Adapter implements ScaleAdapterCore, GattWiring, MultiCh
       // consent would fill the scale with orphans. The user turns it on once,
       // reads the assigned index out of the log, puts that in
       // `beurer_user_index`, and turns it off again.
+      bleLog.info(
+        `Beurer BF720: registering a new user with consent code ${pin}. ` +
+          'This creates a record on the scale.',
+      );
       await ctx.write(
         CHR_USER_CONTROL_POINT,
         [UCP_REGISTER_NEW_USER, pin & 0xff, (pin >> 8) & 0xff],
         true,
       );
       this.consentSent = true;
-      bleLog.info(
-        `Beurer BF720: registering a new user with consent code ${pin}. ` +
-          'This creates a record on the scale.',
-      );
       return;
     }
 
@@ -532,17 +538,22 @@ export class BeurerBf720Adapter implements ScaleAdapterCore, GattWiring, MultiCh
           'scale can complete the measurement',
       );
 
-      // BF500 requires an explicit measurement trigger after the profile commit.
-      // openScale's StandardBeurerSanitasHandler writes 0x00 to 0xFFF4
-      // (chrTakeMeasurement) from onRequestMeasurement() after a successful
-      // consent. The BF720/BF788 deliver measurements autonomously, but the BF500
-      // does not; without this write it stays silent even with a valid consent.
-      if (this.isBf500 && session === this.session && ctx.availableChars.has(CHR_BF500_TAKE_MEASUREMENT)) {
-        try {
-          await ctx.write(CHR_BF500_TAKE_MEASUREMENT, [0x00], true);
-          bleLog.debug('Beurer BF720: BF500 measurement trigger sent (0xFFF4)');
-        } catch (err) {
-          bleLog.debug(`Beurer BF720: BF500 measurement trigger rejected: ${String(err)}`);
+      // Measurement trigger: models that do not deliver measurements autonomously after the
+      // profile commit need an explicit write to a vendor "take measurement" characteristic.
+      // openScale's StandardBeurerSanitasHandler.onRequestMeasurement() does this for every
+      // model it handles. Two distinct trigger UUIDs are in use across the range:
+      //   0xFFF4: BF500 (service 0xFFFF) and BF600-layout BF720 (service 0xFFF0)
+      //   0x0006: BF105/BF720 (service 0xFFFF, openScale BEURER_BF105 profile)
+      // We fire whichever is present on this scale; a characteristic not in availableChars
+      // is silently skipped, so BF788/BF950 models that lack both are unaffected.
+      for (const triggerChr of [CHR_BF500_TAKE_MEASUREMENT, CHR_BF105_TAKE_MEASUREMENT]) {
+        if (session === this.session && ctx.availableChars.has(triggerChr)) {
+          try {
+            await ctx.write(triggerChr, [0x00], true);
+            bleLog.debug(`Beurer BF720: measurement trigger sent (${triggerChr})`);
+          } catch (err) {
+            bleLog.debug(`Beurer BF720: measurement trigger rejected (${triggerChr}): ${String(err)}`);
+          }
         }
       }
     } catch (err) {
