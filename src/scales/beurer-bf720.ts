@@ -415,6 +415,12 @@ export class BeurerBf720Adapter implements ScaleAdapterCore, GattWiring, MultiCh
     this.userIndex = userIndex;
     this.registerNewUser = ctx.scaleAuth?.registerNewUser === true;
     this.provision = ctx.scaleAuth?.provision === true;
+    // Derive isBf500 from the actual discovered characteristics rather than the
+    // name cached in matches(). matches() is called for every advertisement, so
+    // isBf500 could be overwritten by a non-BF500 Beurer advertisement before
+    // onConnected() runs for the BF500. Checking availableChars is authoritative
+    // and also works for the nameless fallback match path.
+    this.isBf500 = ctx.availableChars.has(CHR_BF500_VENDOR_USER_LIST);
 
     await ctx.write(CHR_CURRENT_TIME, this.buildCurrentTime(), true);
 
@@ -572,7 +578,10 @@ export class BeurerBf720Adapter implements ScaleAdapterCore, GattWiring, MultiCh
       for (const triggerChr of [CHR_BF500_TAKE_MEASUREMENT, CHR_BF105_TAKE_MEASUREMENT]) {
         if (session === this.session && ctx.availableChars.has(triggerChr)) {
           try {
-            await ctx.write(triggerChr, [0x00], true);
+            // Write-without-response: these are fire-and-forget command characteristics.
+            // write-with-response (true) fails silently if the char only supports
+            // write commands (ATT Write Command), leaving the scale stuck on USE APP.
+            await ctx.write(triggerChr, [0x00], false);
             bleLog.debug(`Beurer BF720: measurement trigger sent (${triggerChr})`);
           } catch (err) {
             bleLog.debug(`Beurer BF720: measurement trigger rejected (${triggerChr}): ${String(err)}`);
