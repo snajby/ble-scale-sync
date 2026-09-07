@@ -1,5 +1,5 @@
 # Pin to release version tag at release time (e.g. :1.8.0)
 build_from:
-  amd64: ghcr.io/snajby/ble-scale-sync:snajby
-  aarch64: ghcr.io/snajby/ble-scale-sync:snajby
-  armv7: ghcr.io/snajby/ble-scale-sync:snajby
+  amd64: ghcr.io/snajby/ble-scale-sync:1.27.0-snajby
+  aarch64: ghcr.io/snajby/ble-scale-sync:1.27.0-snajby
+  armv7: ghcr.io/snajby/ble-scale-sync:1.27.0-snajby
