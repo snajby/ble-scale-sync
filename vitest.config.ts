@@ -3,6 +3,15 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     /**
+     * The default 5 s limit is tight for a suite of about 250 files running in
+     * parallel: file-watcher, shell-spawning and timer-driven tests all finish
+     * well inside it on an idle machine and miss it when the CPU is shared, which
+     * showed up as unrelated tests failing in one run and passing in the next.
+     * A test that really hangs still fails, only 15 s later.
+     */
+    testTimeout: 20_000,
+    hookTimeout: 20_000,
+    /**
      * Type-contract files (`*.test-d.ts`) are checked, not executed.
      *
      * The root `tsc --noEmit` only covers `src`, so a `@ts-expect-error` under
