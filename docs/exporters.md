@@ -163,7 +163,6 @@ If you run Home Assistant OS or Supervised, the [Home Assistant Add-on](./guide/
 | `password`       | No       | (none)                   | Broker auth password                                                     |
 | `client_id`      | No       | `ble-scale-sync`         | MQTT client identifier                                                   |
 | `ha_discovery`   | No       | `true`                   | Home Assistant auto-discovery                                            |
-| `entity_topics`  | No       | `false`                  | Publish each metric on its own topic (`<topic>/<slug>/<metric>`) and point the HA entities at them, so a reading with only some values updates only those entities. Needed for weight-only readings (see below) |
 | `ha_device_name` | No       | `BLE Scale`              | Device name in Home Assistant                                            |
 
 ```yaml
@@ -174,7 +173,7 @@ global_exporters:
     password: '${MQTT_PASSWORD}'
 ```
 
-With `entity_topics: true`, a weight-only weigh-in (a BF500 with `users[].beurer_send_weight_only: true`, stepped off before the impedance measurement ended) updates only the Weight and BMI entities and leaves the others as they were. A full weigh-in updates all 11. The JSON topic is only written for full readings.
+Each reading is published as two retained JSON messages: the weight and BMI on `<topic>/<slug>/weight`, and the body composition (the other nine values) on `<topic>/<slug>/composition`. Both carry `measured_at`, the time the scale measured them, and two diagnostic sensors, **Weight Measured** and **Composition Measured**, show it. A weigh-in that has only a weight (a BF500 with `users[].beurer_send_weight_only: true`, stepped off before the impedance measurement ended) publishes only the weight message, so the composition entities keep their last values.
 
 Availability uses an MQTT last will: when the app loses the broker without a clean shutdown (a crash, a network drop), the broker publishes `offline` for it, so Home Assistant shows the sensors as unavailable until the app reconnects.
 

@@ -15,7 +15,7 @@ const mqtt: ExporterEntry = {
   client_id: 'ble-scale-sync',
   ha_discovery: true,
   ha_device_name: 'Bathroom scale',
-  entity_topics: false,
+  split_topics: false,
 } as ExporterEntry;
 
 const webhook: ExporterEntry = {

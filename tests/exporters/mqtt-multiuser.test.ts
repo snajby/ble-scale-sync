@@ -59,8 +59,8 @@ describe('MqttExporter multi-user', () => {
       await exporter.export(samplePayload, userContext);
 
       expect(fakeMqtt.publishAsync).toHaveBeenCalledWith(
-        'scale/body-composition/dad',
-        JSON.stringify(samplePayload),
+        'scale/body-composition/dad/weight',
+        expect.stringContaining('"weight":80'),
         { qos: 1, retain: true },
       );
     });
@@ -70,8 +70,8 @@ describe('MqttExporter multi-user', () => {
       await exporter.export(samplePayload);
 
       expect(fakeMqtt.publishAsync).toHaveBeenCalledWith(
-        'scale/body-composition',
-        JSON.stringify(samplePayload),
+        'scale/body-composition/weight',
+        expect.stringContaining('"weight":80'),
         { qos: 1, retain: true },
       );
     });
@@ -81,8 +81,8 @@ describe('MqttExporter multi-user', () => {
       await exporter.export(samplePayload, { userName: 'Dad' });
 
       expect(fakeMqtt.publishAsync).toHaveBeenCalledWith(
-        'scale/body-composition',
-        JSON.stringify(samplePayload),
+        'scale/body-composition/weight',
+        expect.stringContaining('"weight":80'),
         { qos: 1, retain: true },
       );
     });
@@ -126,7 +126,7 @@ describe('MqttExporter multi-user', () => {
         (c[0] as string).includes('ble-scale-sync-dad/weight/config'),
       );
       const payload = JSON.parse(weightCall![1] as string);
-      expect(payload.state_topic).toBe('scale/body-composition/dad');
+      expect(payload.state_topic).toBe('scale/body-composition/dad/weight');
     });
 
     it('uses per-user availability topic in discovery', async () => {
@@ -223,7 +223,7 @@ describe('MqttExporter multi-user', () => {
 
       await exporter.export(samplePayload, { userName: 'Dad', userSlug: 'dad' });
       expect(fakeMqtt.publishAsync).toHaveBeenCalledWith(
-        'scale/body-composition/dad',
+        'scale/body-composition/dad/weight',
         expect.any(String),
         expect.any(Object),
       );
@@ -232,7 +232,7 @@ describe('MqttExporter multi-user', () => {
 
       await exporter.export(samplePayload, { userName: 'Mom', userSlug: 'mom' });
       expect(fakeMqtt.publishAsync).toHaveBeenCalledWith(
-        'scale/body-composition/mom',
+        'scale/body-composition/mom/weight',
         expect.any(String),
         expect.any(Object),
       );

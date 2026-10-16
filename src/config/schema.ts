@@ -486,8 +486,8 @@ export const UserSchema = z.object({
    * stepped off before the impedance measurement ended), report the weight
    * alone instead of dropping the whole weigh-in. Default false.
    *
-   * Only exporters that can say "weight only" receive such a reading (MQTT with
-   * `entity_topics: true`, and Garmin, which then uploads just the weight); the
+   * Only exporters that can say "weight only" receive such a reading (MQTT, and Garmin, which
+   * then uploads just the weight); the
    * rest skip it, because the composition computed for it is an estimate.
    */
   beurer_send_weight_only: z.boolean().optional(),

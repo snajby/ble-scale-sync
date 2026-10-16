@@ -103,7 +103,7 @@ users:
     # Beurer BF7xx / BF9xx only (consent-gated SIG scales):
     # beurer_pin: 1234                    # code the scale was paired with; 0 on a wiped scale
     # beurer_user_index: 1                # scale user slot the code belongs to
-    # beurer_send_weight_only: false          # Beurer BF500: report a weight-only weigh-in (MQTT entity_topics, Garmin)
+    # beurer_send_weight_only: false          # Beurer BF500: report a weight-only weigh-in (MQTT split_topics, Garmin)
     # beurer_skip_replays: true          # Beurer BF500: skip a stored weigh-in that was already reported
     # beurer_live_measurement: false     # Beurer BF500: do not start a live weigh-in on connect (interval polling)
     # beurer_provision: false             # write this profile into a scale that has none stored
