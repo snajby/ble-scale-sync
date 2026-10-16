@@ -57,7 +57,7 @@ export async function buildReadingSource(
     provision: ctx.config.users[0]?.beurer_provision,
     registerNewUser: ctx.config.users[0]?.beurer_register_new_user,
     liveMeasurement: ctx.config.users[0]?.beurer_live_measurement,
-    weightOnly: ctx.config.users[0]?.beurer_weight_only,
+    weightOnly: ctx.config.users[0]?.beurer_send_weight_only,
     skipReplays: ctx.config.users[0]?.beurer_skip_replays,
   });
 

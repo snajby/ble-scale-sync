@@ -174,7 +174,7 @@ global_exporters:
     password: '${MQTT_PASSWORD}'
 ```
 
-With `entity_topics: true`, a weight-only weigh-in (a BF500 with `users[].beurer_weight_only: true`, stepped off before the impedance measurement ended) updates only the Weight and BMI entities and leaves the others as they were. A full weigh-in updates all 11. The JSON topic is only written for full readings.
+With `entity_topics: true`, a weight-only weigh-in (a BF500 with `users[].beurer_send_weight_only: true`, stepped off before the impedance measurement ended) updates only the Weight and BMI entities and leaves the others as they were. A full weigh-in updates all 11. The JSON topic is only written for full readings.
 
 Availability uses an MQTT last will: when the app loses the broker without a clean shutdown (a crash, a network drop), the broker publishes `offline` for it, so Home Assistant shows the sensors as unavailable until the app reconnects.
 

@@ -241,7 +241,7 @@ describe('BeurerBf500Adapter', () => {
       expect(a.parseCharNotification(CHR_BODYCOMP, STUB)).toBeNull();
     });
 
-    it('reports the weight alone when beurer_weight_only is on', async () => {
+    it('reports the weight alone when beurer_send_weight_only is on', async () => {
       const a = new BeurerBf500Adapter();
       await a.onConnected(makeCtx({ scaleAuth: { pin: 1234, userIndex: 1, weightOnly: true } }));
       a.parseCharNotification(CHR_WEIGHT, WSS);
