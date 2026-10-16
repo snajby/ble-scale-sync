@@ -62,6 +62,13 @@ export interface MqttConfig {
   clientId: string;
   haDiscovery: boolean;
   haDeviceName: string;
+  /**
+   * Publish every metric on its own topic (`<topic>/<slug>/<metric>`) and point
+   * the Home Assistant entities at those, so a reading that has only some
+   * values updates only those entities. Off by default: the discovery and the
+   * single JSON topic stay exactly as before.
+   */
+  entityTopics?: boolean;
 }
 
 export interface WebhookConfig {

@@ -311,6 +311,7 @@ export const garminSchema: ExporterSchema = {
 export class GarminExporter implements Exporter {
   readonly name = 'garmin';
   readonly supportsBackdate = true;
+  readonly supportsWeightOnly = true;
   private readonly entryConfig: GarminEntryConfig;
 
   constructor(config?: GarminEntryConfig) {
@@ -328,7 +329,7 @@ export class GarminExporter implements Exporter {
     }
     const payload: GarminUploadPayload = { ...data };
     if (context?.timestamp) payload.timestamp = context.timestamp.toISOString();
-    if (this.entryConfig.weight_only) payload.weight_only = true;
+    if (this.entryConfig.weight_only || context?.weightOnly) payload.weight_only = true;
     if (this.entryConfig.skip_metabolic_age) payload.skip_metabolic_age = true;
 
     const configured = this.entryConfig.upload_timeout_sec;

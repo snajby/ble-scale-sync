@@ -229,6 +229,41 @@ describe('BeurerBf500Adapter', () => {
     });
   });
 
+  describe('weight-only weigh-ins', () => {
+    // Weight frame, then the zeroed composition stub the scale sends when the
+    // impedance measurement did not run: body fat 0, only the BMR field set.
+    const WSS = Buffer.from('0e783eea07050c12353601ee002607', 'hex');
+    const STUB = Buffer.from('9803000003 1e00000000000000000000'.replace(/ /g, ''), 'hex');
+
+    it('drops it by default', () => {
+      const a = new BeurerBf500Adapter();
+      a.parseCharNotification(CHR_WEIGHT, WSS);
+      expect(a.parseCharNotification(CHR_BODYCOMP, STUB)).toBeNull();
+    });
+
+    it('reports the weight alone when beurer_weight_only is on', async () => {
+      const a = new BeurerBf500Adapter();
+      await a.onConnected(makeCtx({ scaleAuth: { pin: 1234, userIndex: 1, weightOnly: true } }));
+      a.parseCharNotification(CHR_WEIGHT, WSS);
+      const r = a.parseCharNotification(CHR_BODYCOMP, STUB);
+      expect(r?.weight).toBeCloseTo(79.96, 1);
+      expect(r?.weightOnly).toBe(true);
+      expect(r?.impedance).toBe(0);
+    });
+
+    it('does not mark a full weigh-in as weight-only', async () => {
+      const a = new BeurerBf500Adapter();
+      await a.onConnected(makeCtx({ scaleAuth: { pin: 1234, userIndex: 1, weightOnly: true } }));
+      a.parseCharNotification(CHR_WEIGHT, WSS);
+      const r = a.parseCharNotification(
+        CHR_BODYCOMP,
+        Buffer.from('9803c200df1a9701cc2fca21a811', 'hex'),
+      );
+      expect(r).not.toBeNull();
+      expect(r?.weightOnly).toBeUndefined();
+    });
+  });
+
   describe('measurement parsing', () => {
     // Frames decoded from the #168 openScale HCI snoop (same SIG formats as the BF720).
     const WSS = Buffer.from('0e783eea07050c12353601ee002607', 'hex');

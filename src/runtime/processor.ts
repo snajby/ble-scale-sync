@@ -163,6 +163,7 @@ function queueFailedExports(
       // The same measurement time the live dispatch carried (D027, F-06), so a
       // target that keys on it sees the retry as the same reading.
       timestamp: measuredAt.toISOString(),
+      ...(context.weightOnly ? { weightOnly: true } : {}),
       ...(context.userName ? { userName: context.userName } : {}),
       ...(context.userSlug ? { userSlug: context.userSlug } : {}),
       queuedAt: new Date().toISOString(),
@@ -253,7 +254,11 @@ async function exportFrame(
   log.info(
     `\n${tagPrefix}Measurement: ${fmtWeight(payload.weight, ctx.weightUnit)} / ${payload.impedance} Ohm`,
   );
-  logBodyComp(payload, ctx.weightUnit, tag);
+  if (reading.weightOnly) {
+    log.info(`${tagPrefix}Weight only: the scale sent no body composition for this weigh-in.`);
+  } else {
+    logBodyComp(payload, ctx.weightUnit, tag);
+  }
 
   // Dry-run signal is unified: ctx.dryRun OR (single-user) undefined exporters.
   // An empty exporter array is NOT a skip: it dispatches to nothing and reports
@@ -286,6 +291,7 @@ async function exportFrame(
     // each exporter, and each Garmin retry process, took its own `now`.
     timestamp: frame.measuredAt,
     ...(frame.historical ? { historical: true } : {}),
+    ...(reading.weightOnly ? { weightOnly: true } : {}),
   };
 
   const label =

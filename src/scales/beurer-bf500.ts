@@ -163,6 +163,10 @@ export class BeurerBf500Adapter implements ScaleAdapterCore, GattWiring, MultiCh
    * Persisted by the runtime through dedupMark/restoreDedupMark.
    */
   private lastReportedMs = 0;
+  /** users[].beurer_weight_only: report a weigh-in that has a weight but no composition. */
+  private weightOnly = false;
+  /** The last composition frame was a zeroed stub (the impedance measurement did not run). */
+  private compWasStub = false;
   /** users[].beurer_skip_replays: false reports every replay of a stored weigh-in. */
   private skipReplays = true;
   /** A replay was skipped this session, so "weight but no composition" is not true. */
@@ -196,6 +200,7 @@ export class BeurerBf500Adapter implements ScaleAdapterCore, GattWiring, MultiCh
     this.consentSent = false;
     this.readingEmitted = false;
     this.replaySkipped = false;
+    this.compWasStub = false;
   }
 
   async onConnected(ctx: ConnectionContext): Promise<void> {
@@ -224,6 +229,7 @@ export class BeurerBf500Adapter implements ScaleAdapterCore, GattWiring, MultiCh
     this.registerNewUser = ctx.scaleAuth?.registerNewUser === true;
     this.liveMeasurement = ctx.scaleAuth?.liveMeasurement !== false;
     this.skipReplays = ctx.scaleAuth?.skipReplays !== false;
+    this.weightOnly = ctx.scaleAuth?.weightOnly === true;
 
     await ctx.write(CHR_CURRENT_TIME, this.buildCurrentTime(), true);
 
@@ -393,7 +399,11 @@ export class BeurerBf500Adapter implements ScaleAdapterCore, GattWiring, MultiCh
     }
     if (charUuid === CHR_BODY_COMPOSITION) {
       this.parseBodyComposition(data);
-      return this.buildReading();
+      const full = this.buildReading();
+      if (full) return full;
+      // The zeroed stub says the scale had no impedance for this weigh-in; the
+      // weight in front of it is still a real measurement.
+      return this.weightOnly && this.compWasStub ? this.buildReading(true) : null;
     }
     return null;
   }
@@ -510,6 +520,7 @@ export class BeurerBf500Adapter implements ScaleAdapterCore, GattWiring, MultiCh
     if (weightKg !== undefined && weightKg > 0 && Number.isFinite(weightKg)) {
       this.cachedWeight = weightKg;
       this.cachedComp = {};
+      this.compWasStub = false;
       this.cachedTimestamp = trustedScaleTime(timestamp);
       this.cachedUserIndex = userIndex;
     }
@@ -560,8 +571,10 @@ export class BeurerBf500Adapter implements ScaleAdapterCore, GattWiring, MultiCh
     // models, unlike the zeroed stubs, but it is the same class of fabrication.
     if (fat === 0 || fat === 0xffff) {
       this.cachedComp = {};
+      this.compWasStub = true;
       return;
     }
+    this.compWasStub = false;
 
     this.cachedComp.fat = fat * 0.1;
     off += 2;
@@ -643,8 +656,9 @@ export class BeurerBf500Adapter implements ScaleAdapterCore, GattWiring, MultiCh
    * runtime, not this adapter, decides from its age whether it is a stored
    * record. The user slot goes on when the frames name one.
    */
-  private buildReading(): ScaleReading | null {
-    if (this.cachedWeight <= 0 || this.cachedComp.fat == null) return null;
+  private buildReading(weightOnly = false): ScaleReading | null {
+    if (this.cachedWeight <= 0) return null;
+    if (!weightOnly && this.cachedComp.fat == null) return null;
     const stamp = this.cachedTimestamp?.getTime();
     if (stamp !== undefined && Number.isFinite(stamp)) {
       // A mark from the future is not a real record (a bad clock or an edited
@@ -662,7 +676,8 @@ export class BeurerBf500Adapter implements ScaleAdapterCore, GattWiring, MultiCh
     }
     const reading: ScaleReading = {
       weight: this.cachedWeight,
-      impedance: this.cachedComp.impedance ?? 0,
+      impedance: weightOnly ? 0 : (this.cachedComp.impedance ?? 0),
+      ...(weightOnly ? { weightOnly: true } : {}),
     };
     if (this.cachedTimestamp) reading.timestamp = this.cachedTimestamp;
     if (this.cachedUserIndex !== undefined) reading.userIndex = this.cachedUserIndex;
@@ -671,7 +686,7 @@ export class BeurerBf500Adapter implements ScaleAdapterCore, GattWiring, MultiCh
     // resolved), so reading the live cachedComp there would hand every history
     // entry whatever happened to be cached at the END of the session. With a
     // snapshot each reading keeps the composition it was actually built from.
-    this.compByReading.pin(reading, { ...this.cachedComp });
+    this.compByReading.pin(reading, weightOnly ? {} : { ...this.cachedComp });
     this.readingEmitted = true;
     return reading;
   }

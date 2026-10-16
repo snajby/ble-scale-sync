@@ -42,6 +42,12 @@ export interface ExportContext {
    * longer means "historical", because live readings carry one too.
    */
   historical?: boolean;
+  /**
+   * True when only the weight of this reading is a measurement. The composition
+   * in the payload is an estimate; an exporter that supports it publishes the
+   * weight (and the BMI derived from it) and leaves everything else as it was.
+   */
+  weightOnly?: boolean;
   /** Outcome of the other exporters; only set for exporters with `reportsExports`. */
   exportResults?: ExportResultDetail[];
 }
@@ -50,6 +56,8 @@ export interface Exporter {
   readonly name: string;
   /** True when this exporter records `context.timestamp` as the measurement time. Historical readings skip exporters without it. */
   readonly supportsBackdate?: boolean;
+  /** True when this exporter can record a weight-only reading without the estimated composition. Other exporters skip such a reading. */
+  readonly supportsWeightOnly?: boolean;
   /** True when this exporter runs after the others and receives their outcomes in `context.exportResults`. */
   readonly reportsExports?: boolean;
   export(data: BodyComposition, context?: ExportContext): Promise<ExportResult>;

@@ -306,6 +306,40 @@ describe('dispatchExports() reportsExports', () => {
   });
 });
 
+// ─── dispatchExports: weight-only reading + supportsWeightOnly ──────────────
+
+describe('dispatchExports() weight-only reading filter', () => {
+  const WO_CTX: ExportContext = { userName: 'Dad', userSlug: 'dad', weightOnly: true };
+
+  it('sends a weight-only reading only to exporters that support it', async () => {
+    const mqtt: Exporter = {
+      name: 'mqtt',
+      supportsWeightOnly: true,
+      export: vi.fn(async () => ({ success: true })),
+    };
+    const file: Exporter = {
+      name: 'file',
+      export: vi.fn(async () => ({ success: true })),
+    };
+
+    const result = await dispatchExports([mqtt, file], SAMPLE_PAYLOAD, WO_CTX);
+
+    expect(mqtt.export).toHaveBeenCalledWith(SAMPLE_PAYLOAD, WO_CTX);
+    expect(file.export).not.toHaveBeenCalled();
+    expect(result.skipped).toBe(1);
+  });
+
+  it('treats it as a success when no exporter can take it', async () => {
+    const file: Exporter = {
+      name: 'file',
+      export: vi.fn(async () => ({ success: true })),
+    };
+    const result = await dispatchExports([file], SAMPLE_PAYLOAD, WO_CTX);
+    expect(result.success).toBe(true);
+    expect(file.export).not.toHaveBeenCalled();
+  });
+});
+
 // ─── dispatchExports: historical reading + supportsBackdate ─────────────────
 
 describe('dispatchExports() historical reading filter', () => {

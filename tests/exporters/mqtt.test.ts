@@ -130,6 +130,42 @@ describe('MqttExporter', () => {
     });
   });
 
+  describe('per-metric topics (entity_topics)', () => {
+    const cfg: MqttConfig = { ...defaultConfig, haDiscovery: true, entityTopics: true };
+    const topics = () => fakeMqtt.publishAsync.mock.calls.map((c: unknown[]) => c[0] as string);
+
+    it('is off by default and then cannot take a weight-only reading', () => {
+      expect(new MqttExporter(defaultConfig).supportsWeightOnly).toBe(false);
+      expect(new MqttExporter(cfg).supportsWeightOnly).toBe(true);
+    });
+
+    it('points each entity at its own topic, without a value template', async () => {
+      await new MqttExporter(cfg).export(samplePayload, { userSlug: 'filip', userName: 'Filip' });
+      const fat = fakeMqtt.publishAsync.mock.calls.find((c: unknown[]) =>
+        (c[0] as string).endsWith('/bodyFatPercent/config'),
+      );
+      const body = JSON.parse(fat?.[1] as string);
+      expect(body.state_topic).toBe('scale/body-composition/filip/bodyFatPercent');
+      expect(body.value_template).toBeUndefined();
+    });
+
+    it('publishes every metric plus the JSON topic for a full reading', async () => {
+      await new MqttExporter(cfg).export(samplePayload, { userSlug: 'filip' });
+      expect(topics()).toContain('scale/body-composition/filip/weight');
+      expect(topics()).toContain('scale/body-composition/filip/bodyFatPercent');
+      expect(topics()).toContain('scale/body-composition/filip');
+    });
+
+    it('publishes only weight and BMI for a weight-only reading, and not the JSON topic', async () => {
+      await new MqttExporter(cfg).export(samplePayload, { userSlug: 'filip', weightOnly: true });
+      const data = topics().filter((t) => t.startsWith('scale/body-composition/filip'));
+      expect(data.filter((t) => !t.endsWith('/status')).sort()).toEqual([
+        'scale/body-composition/filip/bmi',
+        'scale/body-composition/filip/weight',
+      ]);
+    });
+  });
+
   describe('Home Assistant discovery', () => {
     it('publishes discovery payloads + status + data when haDiscovery is true', async () => {
       const config: MqttConfig = { ...defaultConfig, haDiscovery: true };

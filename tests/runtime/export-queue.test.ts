@@ -150,6 +150,16 @@ describe('export retry queue (#412)', () => {
     );
   });
 
+  it('redelivers a weight-only reading as weight-only', async () => {
+    saveQueue(file, [entry({ timestamp: '2026-09-08T06:00:00.000Z', weightOnly: true })]);
+    const garmin = fakeExporter('garmin', async () => ({ success: true }));
+
+    await flushQueue(file, lookupIn(garmin), NOW);
+
+    const context = (garmin.export as unknown as { mock: { calls: unknown[][] } }).mock.calls[0][1];
+    expect((context as { weightOnly?: boolean }).weightOnly).toBe(true);
+  });
+
   it('keeps a failed entry with its attempt count raised', async () => {
     saveQueue(file, [entry()]);
     const garmin = fakeExporter('garmin', async () => ({ success: false, error: 'still down' }));

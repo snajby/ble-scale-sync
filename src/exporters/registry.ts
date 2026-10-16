@@ -220,6 +220,7 @@ export const EXPORTER_REGISTRY: ExporterRegistryEntry[] = [
         clientId: (config.client_id as string) ?? 'ble-scale-sync',
         haDiscovery: optionalBool(config, 'mqtt', 'ha_discovery') ?? true,
         haDeviceName: (config.ha_device_name as string) ?? 'BLE Scale',
+        entityTopics: optionalBool(config, 'mqtt', 'entity_topics') ?? false,
       };
       return new MqttExporter(mqttConfig);
     },

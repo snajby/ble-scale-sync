@@ -83,6 +83,14 @@ export interface ScaleReading {
    */
   timestamp?: Date;
   /**
+   * True when only the weight is a measurement: the scale sent no usable body
+   * composition (the user stepped off before the impedance measurement ended).
+   * The composition in the payload computed from this reading is an estimate,
+   * so only exporters that declare `supportsWeightOnly` receive it, and they
+   * update just the weight. Set only by an adapter whose user opted in.
+   */
+  weightOnly?: boolean;
+  /**
    * The scale's own user slot for this reading, when the frame says which
    * profile on the scale it was taken for (a SIG User Index, a vendor user
    * byte). Used to attribute a stored record in multi-user mode before falling
@@ -202,6 +210,11 @@ export interface ScaleAuth {
    * so no live weigh-in is started. Undefined means true.
    */
   liveMeasurement?: boolean;
+  /**
+   * Beurer BF500: emit a weigh-in that has a weight but no body composition as
+   * a weight-only reading. Undefined or false drops it.
+   */
+  weightOnly?: boolean;
   /**
    * Beurer BF500: false reports a stored weigh-in again on every connect.
    * Undefined means true: a replay of an already reported record is skipped.

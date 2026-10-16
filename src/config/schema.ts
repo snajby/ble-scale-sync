@@ -482,6 +482,16 @@ export const UserSchema = z.object({
    */
   beurer_live_measurement: z.boolean().optional(),
   /**
+   * Beurer BF500: when a weigh-in has a weight but no body composition (you
+   * stepped off before the impedance measurement ended), report the weight
+   * alone instead of dropping the whole weigh-in. Default false.
+   *
+   * Only exporters that can say "weight only" receive such a reading (MQTT with
+   * `entity_topics: true`, and Garmin, which then uploads just the weight); the
+   * rest skip it, because the composition computed for it is an estimate.
+   */
+  beurer_weight_only: z.boolean().optional(),
+  /**
    * Beurer BF500: skip a stored weigh-in that was already reported. Default
    * true. The scale replays its last record on every connect and never clears
    * it, so interval polling would export the same weigh-in each time. Set it to

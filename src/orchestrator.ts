@@ -82,13 +82,23 @@ export async function dispatchExports(
   // measurement time too (D027), and reading that as "historical" would stop
   // every live MQTT, webhook and notification export.
   const isHistorical = context?.historical === true;
-  const eligible = isHistorical ? exporters.filter((e) => e.supportsBackdate === true) : exporters;
-  const skipped = isHistorical ? exporters.filter((e) => e.supportsBackdate !== true) : [];
+  // A weight-only reading carries an ESTIMATED composition, which must not reach
+  // an exporter that cannot tell it from a measured one.
+  const isWeightOnly = context?.weightOnly === true;
+  const canTake = (e: Exporter): boolean =>
+    (!isHistorical || e.supportsBackdate === true) &&
+    (!isWeightOnly || e.supportsWeightOnly === true);
+  const eligible = isHistorical || isWeightOnly ? exporters.filter(canTake) : exporters;
+  const skipped = isHistorical || isWeightOnly ? exporters.filter((e) => !canTake(e)) : [];
 
   if (skipped.length > 0) {
+    const why = [isHistorical ? 'historical' : '', isWeightOnly ? 'weight-only' : '']
+      .filter(Boolean)
+      .join(', ');
     log.info(
-      `Historical reading (${context?.timestamp?.toISOString() ?? 'time unknown'}): ` +
-        `skipping non-back-date exporters [${skipped.map((e) => e.name).join(', ')}]`,
+      `${isHistorical ? 'Historical reading' : 'Reading'} ` +
+        `(${context?.timestamp?.toISOString() ?? 'time unknown'}, ${why}): ` +
+        `skipping exporters that cannot take it [${skipped.map((e) => e.name).join(', ')}]`,
     );
   }
 
@@ -100,7 +110,7 @@ export async function dispatchExports(
   };
 
   if (eligible.length === 0) {
-    if (isHistorical && skipped.length > 0) {
+    if ((isHistorical || isWeightOnly) && skipped.length > 0) {
       return buildResult(true, []);
     }
     log.warn('No exporters configured, measurement processed but not sent anywhere.');

@@ -122,6 +122,15 @@ export const mqttSchema: ExporterSchema = {
       description: 'Publish Home Assistant auto-discovery configs',
     },
     {
+      key: 'entity_topics',
+      label: 'Per-metric topics',
+      type: 'boolean',
+      required: false,
+      default: false,
+      description:
+        'Publish each metric on its own topic and point the HA entities at them, so a weight-only weigh-in updates only the weight',
+    },
+    {
       key: 'ha_device_name',
       label: 'HA Device Name',
       type: 'string',
@@ -227,9 +236,12 @@ async function endQuietly(client: MqttClient): Promise<void> {
 export class MqttExporter implements Exporter {
   readonly name = 'mqtt';
   private readonly config: MqttConfig;
+  /** With per-metric topics a reading can carry just some values (weight only). */
+  readonly supportsWeightOnly: boolean;
 
   constructor(config: MqttConfig) {
     this.config = config;
+    this.supportsWeightOnly = config.entityTopics === true;
   }
 
   private async publishDiscovery(client: MqttClient, context?: ExportContext): Promise<void> {
@@ -255,8 +267,9 @@ export class MqttExporter implements Exporter {
       const payload: Record<string, unknown> = {
         name: metric.name,
         unique_id: `${deviceId}_${metric.key}`,
-        state_topic: dataTopic,
-        value_template: `{{ value_json.${metric.key} }}`,
+        ...(this.config.entityTopics
+          ? { state_topic: `${dataTopic}/${metric.key}` }
+          : { state_topic: dataTopic, value_template: `{{ value_json.${metric.key} }}` }),
         state_class: 'measurement',
         availability: [{ topic: statusTopic }],
         device,
@@ -335,13 +348,39 @@ export class MqttExporter implements Exporter {
             );
           }
 
-          const payload = JSON.stringify(data);
-          await withTimeout(
-            client.publishAsync(dataTopic, payload, { qos, retain }),
-            OPERATION_TIMEOUT_MS,
-            'MQTT publish timed out',
-          );
-          log.info(`Published to ${dataTopic} (qos=${qos}, retain=${retain}).`);
+          const weightOnly = context?.weightOnly === true;
+          if (this.config.entityTopics) {
+            // One topic per entity. A weight-only reading carries a measured
+            // weight and the BMI that follows from it; the rest of the payload
+            // is an estimate, so those entities are not touched.
+            const keys: ReadonlyArray<keyof BodyComposition> = weightOnly
+              ? ['weight', 'bmi']
+              : HA_METRIC_DEFS.map((m) => m.key);
+            await withTimeout(
+              Promise.all(
+                keys.map((key) =>
+                  client.publishAsync(`${dataTopic}/${key}`, String(data[key]), { qos, retain }),
+                ),
+              ),
+              OPERATION_TIMEOUT_MS,
+              'MQTT publish timed out',
+            );
+            log.info(
+              `Published ${keys.length} metric(s) under ${dataTopic}/ ` +
+                `(${weightOnly ? 'weight only' : 'full'}, qos=${qos}, retain=${retain}).`,
+            );
+          }
+          // The JSON topic carries a whole reading, so a weight-only one skips it
+          // rather than replace the last full reading with estimates.
+          if (!weightOnly) {
+            const payload = JSON.stringify(data);
+            await withTimeout(
+              client.publishAsync(dataTopic, payload, { qos, retain }),
+              OPERATION_TIMEOUT_MS,
+              'MQTT publish timed out',
+            );
+            log.info(`Published to ${dataTopic} (qos=${qos}, retain=${retain}).`);
+          }
           return { success: true };
         } finally {
           // endQuietly never throws, so a failed disconnect cannot turn a

@@ -69,6 +69,8 @@ export interface QueuedExport {
    * and redelivered at 09:00 was recorded as 09:00.
    */
   timestamp?: string;
+  /** The reading was weight-only: redeliver it as such (only the weight is a measurement). */
+  weightOnly?: boolean;
   userName?: string;
   userSlug?: string;
   /** ISO 8601, when the failure happened. Drives the age bound. */
@@ -528,6 +530,7 @@ export async function flushQueue(
 
     const context: ExportContext = {
       ...(entry.timestamp ? { timestamp: new Date(entry.timestamp) } : {}),
+      ...(entry.weightOnly ? { weightOnly: true } : {}),
       ...(entry.userName ? { userName: entry.userName } : {}),
       ...(entry.userSlug ? { userSlug: entry.userSlug } : {}),
     };
