@@ -32,10 +32,26 @@ describe('add-on changelog sync (#294)', () => {
 
   it('documents the version the add-on config reports', () => {
     const config = lf(readFileSync(ADDON_CONFIG_PATH, 'utf8'));
-    const version = /^version:\s*["']?([\d.]+)["']?\s*$/m.exec(config)?.[1];
-    expect(version, 'no version in ble-scale-sync-addon/config.yaml').toBeDefined();
-    const escaped = version!.replace(/\./g, '\\.');
-    expect(addon).toMatch(new RegExp(`^## \\[${escaped}\\]`, 'm'));
+    const m = /^version:\s*["']?(\d+\.\d+\.\d+)(-[\w.]+)?["']?\s*$/m.exec(config);
+    expect(m, 'no version in ble-scale-sync-addon/config.yaml').not.toBeNull();
+    const version = m![1];
+    const hasHeading = new RegExp(`^## \\[${version.replace(/\./g, '\\.')}\\]`, 'm').test(addon);
+    if (hasHeading) return;
+    // A fork build (`1.33.5-snajby`) is upstream's release plus patches of its
+    // own, which upstream's changelog cannot list. It is accepted when the
+    // changelog's newest release is not ahead of it, i.e. it is the release the
+    // fork is built on. A plain version still needs its own heading.
+    const suffix = m![2];
+    const newest = /^## \[(\d+)\.(\d+)\.(\d+)\]/m.exec(addon)?.slice(1, 4).map(Number);
+    const mine = version.split('.').map(Number);
+    const notAhead =
+      newest !== undefined &&
+      (newest[0] - mine[0] || newest[1] - mine[1] || newest[2] - mine[2]) <= 0;
+    expect(
+      suffix !== undefined && notAhead,
+      `no "## [${version}]" heading in the add-on changelog, and ${version}${suffix ?? ''} ` +
+        'is not a suffixed fork build on top of a documented release',
+    ).toBe(true);
   });
 
   it('keeps every release heading', () => {
