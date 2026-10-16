@@ -470,6 +470,17 @@ export const UserSchema = z.object({
    * that in `beurer_user_index`, then turn it off.
    */
   beurer_register_new_user: z.boolean().optional(),
+  /**
+   * Beurer BF500: send the take-measurement command (0xFFF4) after the consent.
+   * Default true, which is what openScale does and what starts a live weigh-in
+   * and lights the scale's display.
+   *
+   * Set it to false to connect only to pick up what the scale already holds,
+   * for interval polling. Whether the scale then sends its stored measurements
+   * without the command is not established; try it and read the log. Ignored by
+   * the other Beurer adapters.
+   */
+  beurer_live_measurement: z.boolean().optional(),
 });
 
 export const RuntimeSchema = z.object({

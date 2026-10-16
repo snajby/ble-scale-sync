@@ -56,6 +56,7 @@ export async function buildReadingSource(
     userIndex: ctx.config.users[0]?.beurer_user_index,
     provision: ctx.config.users[0]?.beurer_provision,
     registerNewUser: ctx.config.users[0]?.beurer_register_new_user,
+    liveMeasurement: ctx.config.users[0]?.beurer_live_measurement,
   });
 
   const plan = await createReadingSource({
