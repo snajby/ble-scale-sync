@@ -44,6 +44,9 @@ const CHR_VENDOR_USER_LIST = uuid16(0xfff1); // notify: one frame per user slot
 const CHR_VENDOR_ACTIVITY = uuid16(0xfff2); // write: activity level 1..5
 const CHR_VENDOR_TAKE_MEASUREMENT = uuid16(0xfff4); // write 0x00: start a measurement
 
+/** A stored mark further ahead of the host clock than this is not trusted. */
+const MARK_FUTURE_TOLERANCE_MS = 5 * 60 * 1000;
+
 /** Activity level written for a freshly registered user (openScale range 1..5). */
 const DEFAULT_ACTIVITY_LEVEL = 0x03;
 
@@ -154,6 +157,15 @@ export class BeurerBf500Adapter implements ScaleAdapterCore, GattWiring, MultiCh
   /** Whether a reading was emitted this session (gates the session-end warning). */
   private readingEmitted = false;
   /**
+   * High-water mark: the scale's own timestamp (ms) of the newest reading this
+   * adapter reported. The BF500 replays its last stored weigh-in on every
+   * connect and never clears it, so without this each poll exports it again.
+   * Persisted by the runtime through dedupMark/restoreDedupMark.
+   */
+  private lastReportedMs = 0;
+  /** A replay was skipped this session, so "weight but no composition" is not true. */
+  private replaySkipped = false;
+  /**
    * Composition pinned to the reading it was measured with (#394). See
    * ReadingComposition for why computeMetrics cannot read the live cache on
    * the watcher transports.
@@ -181,6 +193,7 @@ export class BeurerBf500Adapter implements ScaleAdapterCore, GattWiring, MultiCh
     this.consentAnswered = false;
     this.consentSent = false;
     this.readingEmitted = false;
+    this.replaySkipped = false;
   }
 
   async onConnected(ctx: ConnectionContext): Promise<void> {
@@ -460,7 +473,7 @@ export class BeurerBf500Adapter implements ScaleAdapterCore, GattWiring, MultiCh
           'Check the bond, the code and the slot.',
       );
     }
-    if (!this.readingEmitted && this.cachedWeight > 0) {
+    if (!this.readingEmitted && !this.replaySkipped && this.cachedWeight > 0) {
       bleLog.warn(
         `Beurer BF500: the session ended with a weight (${this.cachedWeight.toFixed(2)} kg) ` +
           'but no usable body-composition values, so no reading was emitted.',
@@ -629,6 +642,21 @@ export class BeurerBf500Adapter implements ScaleAdapterCore, GattWiring, MultiCh
    */
   private buildReading(): ScaleReading | null {
     if (this.cachedWeight <= 0 || this.cachedComp.fat == null) return null;
+    const stamp = this.cachedTimestamp?.getTime();
+    if (stamp !== undefined && Number.isFinite(stamp)) {
+      // A mark from the future is not a real record (a bad clock or an edited
+      // file) and would silence the scale for good, so let it go.
+      if (this.lastReportedMs > Date.now() + MARK_FUTURE_TOLERANCE_MS) this.lastReportedMs = 0;
+      if (stamp <= this.lastReportedMs) {
+        this.replaySkipped = true;
+        bleLog.debug(
+          `Beurer BF500: skipping the stored weigh-in of ${this.cachedTimestamp?.toISOString()}, ` +
+            'already reported',
+        );
+        return null;
+      }
+      this.lastReportedMs = stamp;
+    }
     const reading: ScaleReading = {
       weight: this.cachedWeight,
       impedance: this.cachedComp.impedance ?? 0,
@@ -643,6 +671,18 @@ export class BeurerBf500Adapter implements ScaleAdapterCore, GattWiring, MultiCh
     this.compByReading.pin(reading, { ...this.cachedComp });
     this.readingEmitted = true;
     return reading;
+  }
+
+  /** The high-water mark, for the runtime to persist. */
+  dedupMark(): number | undefined {
+    return this.lastReportedMs || undefined;
+  }
+
+  /** Take back a mark an earlier process stored. Only ever raises it. */
+  restoreDedupMark(mark: number): void {
+    if (!Number.isFinite(mark) || mark <= 0) return;
+    if (mark > Date.now() + MARK_FUTURE_TOLERANCE_MS) return;
+    if (mark > this.lastReportedMs) this.lastReportedMs = mark;
   }
 
   isComplete(reading: ScaleReading): boolean {
