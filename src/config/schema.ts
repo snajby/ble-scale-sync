@@ -527,7 +527,7 @@ export const RuntimeSchema = z.object({
    * Linux/BlueZ (`node-ble`) only, because only that handler tells a session
    * that answered from one that did not.
    */
-  empty_session_delay: z.number().int().min(0).max(3600).optional(),
+  empty_session_delay: z.number().int().min(0).max(86400).optional(),
   /**
    * Keep a reading whose export failed and retry it on a later cycle (#412).
    *
