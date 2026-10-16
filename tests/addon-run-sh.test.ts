@@ -236,6 +236,31 @@ describe('add-on option adapter_privacy (#417)', () => {
   });
 });
 
+describe('add-on option keep_debug_keys', () => {
+  const SCHEMA = (
+    parse(lf(readFileSync('ble-scale-sync-addon/config.yaml', 'utf8'))) as {
+      schema: Record<string, unknown>;
+    }
+  ).schema;
+
+  it('is an add-on option, off by default, validated as a boolean', () => {
+    expect(MANIFEST.options).toHaveProperty('keep_debug_keys', false);
+    expect(SCHEMA).toHaveProperty('keep_debug_keys', 'bool?');
+    expect(TRANSLATIONS.configuration).toHaveProperty('keep_debug_keys');
+  });
+
+  it('is read with opt_bool and written into the ble block only when true', () => {
+    expect(RUN_SH).toMatch(/^ {2}KEEP_DEBUG_KEYS=\$\(opt_bool keep_debug_keys\)$/m);
+    expect(RUN_SH).toContain(
+      '[ "$KEEP_DEBUG_KEYS" = "true" ] && echo "  keep_debug_keys: true" >> "$FRESH"',
+    );
+  });
+
+  it('is named as ignored in custom config mode', () => {
+    expect(customConfigBranch()).toMatch(/for _qn in [^;]*\bkeep_debug_keys\b[^;]*; do/);
+  });
+});
+
 describe('generated config: ble block', () => {
   it('is opened by every option it writes', () => {
     // An option written inside the block but missing from its condition is

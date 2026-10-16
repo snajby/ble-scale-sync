@@ -317,6 +317,22 @@ export const BleSchema = z
      */
     adapter_privacy: z.boolean().optional().nullable(),
     /**
+     * Let the kernel keep pairing keys that the scale made with the Bluetooth
+     * SMP debug key pair (`btmgmt debug-keys on`).
+     *
+     * A Beurer BF500 pairs that way: BlueZ reports "Key type: Debug key from
+     * P-256" and, with Debug Keys off, does not reuse the key on the next
+     * connect, so the scale asks for SET and a new pairing before every
+     * weigh-in. Debug keys are publicly known, so a bond made this way gives no
+     * protection against someone in radio range; for a bathroom scale that is an
+     * acceptable trade, which is why it is opt-in.
+     *
+     * Adapter-wide and applied at the start of every scan cycle, only when the
+     * setting is missing. Read once at start-up (restart-required). node-ble on
+     * Linux only.
+     */
+    keep_debug_keys: z.boolean().optional().nullable(),
+    /**
      * Minutes of total advertisement silence before a proxy transport is
      * treated as wedged rather than idle (#281). 0 disables the check.
      *

@@ -105,6 +105,12 @@ export function diffRestartRequired(
     oldConfig.ble?.adapter_privacy,
     newConfig.ble?.adapter_privacy,
   );
+  diffField(
+    out,
+    'ble.keep_debug_keys',
+    oldConfig.ble?.keep_debug_keys,
+    newConfig.ble?.keep_debug_keys,
+  );
   // The adapter list is built once, before the loop starts (run.ts), so a
   // hot-edited value changes nothing until a restart. Without this row the user
   // gets neither the effect nor the warning, which is neither half of the

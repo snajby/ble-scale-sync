@@ -117,6 +117,15 @@ configuration:
       off stops the brief adapter drop that other Home Assistant Bluetooth
       integrations see after each weigh-in, at the risk of that stuck scanning
       state.
+  keep_debug_keys:
+    name: Keep pairings made with the Bluetooth debug key
+    description: >-
+      local transport only. For scales, such as the Beurer BF500, that ask you
+      to press SET and pair again before every weigh-in even though the host
+      reports the pairing as stored. Turns on the adapter's Debug Keys setting
+      (btmgmt debug-keys on) so the kernel reuses the key. Debug keys are
+      publicly known, so this gives no protection against someone in radio
+      range; it is adapter-wide and checked at the start of every scan.
   adapter_privacy:
     name: Pair with a host identity key (LE privacy)
     description: >-

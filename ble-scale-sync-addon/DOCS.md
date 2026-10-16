@@ -249,6 +249,10 @@ The add-on power-cycles the Bluetooth adapter on startup to ensure a clean state
 
 Separately from that startup reset, the add-on also power-cycles the adapter after every connection to the scale (built-in Bluetooth only, not with an ESPHome or ESP32 proxy), to clear a stuck scanning state some Raspberry Pi adapters fall into. **Power-cycle the adapter after every weigh-in** (`preemptive_adapter_reset`) turns that off. Leave it on unless other Home Assistant Bluetooth integrations on the same adapter suffer from the brief drop after each weigh-in. It was not the cause of the Beurer BF915 re-pairing in #417; for a scale that asks to pair again before every weigh-in, see the next section.
 
+### Beurer BF500 asks to pair again before every weigh-in
+
+A BF500 pairs with the Bluetooth debug key pair (`btmon` shows `Key type: Debug key from P-256`). With the adapter's Debug Keys setting off, Linux does not reuse that key, so the scale asks for SET and a new pairing every time, even though `bluetoothctl info` shows `Paired`, `Bonded` and `Trusted`. Turn on **Keep pairings made with the Bluetooth debug key** (`keep_debug_keys`), remove the old pairing once, pair again, and the next connect needs no SET. Debug keys are publicly known, so the bond gives no protection against someone in radio range. It is adapter-wide.
+
 ### Beurer scale asks to pair again before every weigh-in
 
 Some Beurer scales (the BF915 is confirmed) keep a pairing only from a device that handed over an identity key while pairing, and Linux hands one over only while the Bluetooth adapter has LE privacy turned on, which it does not by default. The pairing then works once and is rejected on the next connect. **Pair with a host identity key (LE privacy)** (`adapter_privacy`) turns privacy on with a key derived from the adapter's address, which stays the same across restarts, reinstalls and reboots.

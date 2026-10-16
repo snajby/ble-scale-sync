@@ -250,7 +250,7 @@ if [ "$CUSTOM_CONFIG" = "true" ]; then
   # wrong value for either is silent by nature, so a setting that is silently
   # ignored is worse here than almost anywhere else.
   for _qn in qn_protocol_byte qn_report_byte qn_weight_ack qn_user_key qn_a4_prelude \
-    qn_time_sync_long qn_config_long auto_clear_stale_bond adapter_privacy; do
+    qn_time_sync_long qn_config_long auto_clear_stale_bond adapter_privacy keep_debug_keys; do
     if [ -n "$(opt "$_qn")" ]; then
       log "WARNING: custom_config is enabled, so the '$_qn' option is ignored."
       log "Set 'ble.$_qn' in $CUSTOM_PATH instead."
@@ -368,6 +368,7 @@ else
   # Defaults to true: only an explicit false switches it off (#417).
   PREEMPTIVE_ADAPTER_RESET=$(opt_bool_default_true preemptive_adapter_reset)
   ADAPTER_PRIVACY=$(opt_bool adapter_privacy)
+  KEEP_DEBUG_KEYS=$(opt_bool keep_debug_keys)
   PROXY_LIVENESS_MIN=$(opt_int proxy_liveness_timeout_min 30)
   # Still written below, but the built-in Bluetooth transport has no liveness
   # check. Say so instead of letting the option look like it did something.
@@ -397,6 +398,7 @@ else
     [ "$AUTO_CLEAR_STALE_BOND" != "true" ] || _host_only="${_host_only:+$_host_only, }auto_clear_stale_bond"
     [ "$PREEMPTIVE_ADAPTER_RESET" != "false" ] || _host_only="${_host_only:+$_host_only, }preemptive_adapter_reset"
     [ "$ADAPTER_PRIVACY" != "true" ] || _host_only="${_host_only:+$_host_only, }adapter_privacy"
+    [ "$KEEP_DEBUG_KEYS" != "true" ] || _host_only="${_host_only:+$_host_only, }keep_debug_keys"
     if [ -n "$_host_only" ]; then
       log "NOTE: ble_transport $BLE_TRANSPORT does not use the built-in Bluetooth adapter, so these options are ignored: $_host_only."
     fi
@@ -404,6 +406,7 @@ else
     AUTO_CLEAR_STALE_BOND=false
     PREEMPTIVE_ADAPTER_RESET=true
     ADAPTER_PRIVACY=false
+    KEEP_DEBUG_KEYS=false
   fi
   DISPLAY_UNIT=$(opt display_unit)
 
@@ -717,7 +720,7 @@ YAML
     [ -n "$QN_PROTOCOL_BYTE" ] || [ -n "$QN_REPORT_BYTE" ] || [ -n "$QN_WEIGHT_ACK" ] ||
     [ -n "$QN_USER_KEY" ] || [ -n "$QN_A4_PRELUDE" ] || [ -n "$QN_TIME_SYNC_LONG" ] || [ -n "$QN_CONFIG_LONG" ] ||
     [ "$AUTO_CLEAR_STALE_BOND" = "true" ] || [ "$PREEMPTIVE_ADAPTER_RESET" = "false" ] ||
-    [ "$ADAPTER_PRIVACY" = "true" ] || [ "$PROXY_LIVENESS_MIN" != "30" ] ||
+    [ "$ADAPTER_PRIVACY" = "true" ] || [ "$KEEP_DEBUG_KEYS" = "true" ] || [ "$PROXY_LIVENESS_MIN" != "30" ] ||
     [ "$BLE_TRANSPORT" != "local" ]; then
     echo "ble:" >> "$FRESH"
     [ -n "$SCALE_MAC" ] && printf '%s\n' "  scale_mac: \"$(yaml_escape "$SCALE_MAC")\"" >> "$FRESH"
@@ -733,6 +736,7 @@ YAML
     [ "$AUTO_CLEAR_STALE_BOND" = "true" ] && echo "  auto_clear_stale_bond: true" >> "$FRESH"
     [ "$PREEMPTIVE_ADAPTER_RESET" = "false" ] && echo "  preemptive_adapter_reset: false" >> "$FRESH"
     [ "$ADAPTER_PRIVACY" = "true" ] && echo "  adapter_privacy: true" >> "$FRESH"
+    [ "$KEEP_DEBUG_KEYS" = "true" ] && echo "  keep_debug_keys: true" >> "$FRESH"
     [ "$PROXY_LIVENESS_MIN" != "30" ] && echo "  proxy_liveness_timeout_min: $PROXY_LIVENESS_MIN" >> "$FRESH"
     [ "$BLE_TRANSPORT" != "local" ] && emit_ble_transport >> "$FRESH"
     echo "" >> "$FRESH"

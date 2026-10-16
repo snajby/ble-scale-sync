@@ -103,6 +103,8 @@ export interface ResolvedRuntimeConfig {
   bleAdapter?: string;
   /** `ble.adapter_privacy` (#417). */
   adapterPrivacy: boolean;
+  /** `ble.keep_debug_keys`. */
+  keepDebugKeys: boolean;
   mqttProxy?: MqttProxyConfig;
   esphomeProxy?: EsphomeProxyConfig;
   haBluetooth?: HaBluetoothConfig;
@@ -128,6 +130,7 @@ export function resolveRuntimeConfig(config: AppConfig): ResolvedRuntimeConfig {
     bleHandler: config.ble?.handler ?? 'auto',
     bleAdapter: config.ble?.adapter ?? undefined,
     adapterPrivacy: config.ble?.adapter_privacy === true,
+    keepDebugKeys: config.ble?.keep_debug_keys === true,
     mqttProxy: config.ble?.mqtt_proxy ?? undefined,
     esphomeProxy: config.ble?.esphome_proxy ?? undefined,
     haBluetooth: config.ble?.ha_bluetooth ?? undefined,

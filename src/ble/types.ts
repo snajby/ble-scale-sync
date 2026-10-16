@@ -174,6 +174,12 @@ export interface ScanOptions {
    * the connect when it is off (`ble.adapter_privacy`, #417). node-ble only.
    */
   adapterPrivacy?: boolean;
+  /**
+   * Make sure the kernel keeps debug-key pairings (`ble.keep_debug_keys`), for
+   * scales such as the Beurer BF500 that pair with the SMP debug key pair.
+   * node-ble only.
+   */
+  keepDebugKeys?: boolean;
 }
 
 export interface ScanResult {
