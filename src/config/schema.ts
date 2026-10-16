@@ -490,7 +490,7 @@ export const UserSchema = z.object({
    * then uploads just the weight); the
    * rest skip it, because the composition computed for it is an estimate.
    */
-  beurer_send_weight_only: z.boolean().optional(),
+  beurer_allow_weight_only: z.boolean().optional(),
   /**
    * Beurer BF500: skip a stored weigh-in that was already reported. Default
    * true. The scale replays its last record on every connect and never clears

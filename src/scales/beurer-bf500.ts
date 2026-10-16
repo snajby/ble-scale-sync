@@ -163,7 +163,7 @@ export class BeurerBf500Adapter implements ScaleAdapterCore, GattWiring, MultiCh
    * Persisted by the runtime through dedupMark/restoreDedupMark.
    */
   private lastReportedMs = 0;
-  /** users[].beurer_send_weight_only: report a weigh-in that has a weight but no composition. */
+  /** users[].beurer_allow_weight_only: report a weigh-in that has a weight but no composition. */
   private weightOnly = false;
   /** The last composition frame was a zeroed stub (the impedance measurement did not run). */
   private compWasStub = false;

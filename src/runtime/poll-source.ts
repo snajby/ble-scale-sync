@@ -63,7 +63,7 @@ export class PollReadingSource implements ReadingSource {
         provision: primaryUser.beurer_provision,
         registerNewUser: primaryUser.beurer_register_new_user,
         liveMeasurement: primaryUser.beurer_live_measurement,
-        weightOnly: primaryUser.beurer_send_weight_only,
+        weightOnly: primaryUser.beurer_allow_weight_only,
         skipReplays: primaryUser.beurer_skip_replays,
       },
       weightUnit: this.ctx.weightUnit,

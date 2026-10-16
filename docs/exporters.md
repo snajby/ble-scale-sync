@@ -173,7 +173,7 @@ global_exporters:
     password: '${MQTT_PASSWORD}'
 ```
 
-Each reading is published as two retained JSON messages: the weight and BMI on `<topic>/<slug>/weight`, and the body composition (the other nine values) on `<topic>/<slug>/composition`. Both carry `measured_at`, the time the scale measured them, and two diagnostic sensors, **Weight Measured** and **Composition Measured**, show it. A weigh-in that has only a weight (a BF500 with `users[].beurer_send_weight_only: true`, stepped off before the impedance measurement ended) publishes only the weight message, so the composition entities keep their last values.
+Each reading is published as two retained JSON messages: the weight and BMI on `<topic>/<slug>/weight`, and the body composition (the other nine values) on `<topic>/<slug>/composition`. Both carry `measured_at`, the time the scale measured them, and two diagnostic sensors, **Weight Measured** and **Composition Measured**, show it. A weigh-in that has only a weight (a BF500 with `users[].beurer_allow_weight_only: true`, stepped off before the impedance measurement ended) publishes only the weight message, so the composition entities keep their last values.
 
 Availability uses an MQTT last will: when the app loses the broker without a clean shutdown (a crash, a network drop), the broker publishes `offline` for it, so Home Assistant shows the sensors as unavailable until the app reconnects.
 
