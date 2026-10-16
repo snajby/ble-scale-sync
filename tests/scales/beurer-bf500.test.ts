@@ -198,6 +198,31 @@ describe('BeurerBf500Adapter', () => {
       }
     });
 
+    it('reports several stored weigh-ins of one session whatever order they arrive in', () => {
+      hist();
+      try {
+        const a = new BeurerBf500Adapter();
+        a.onSessionStart();
+        // Newest first: a single moving mark would skip the older record.
+        a.parseCharNotification(CHR_WEIGHT, WSS(50));
+        expect(a.parseCharNotification(CHR_BODYCOMP, BCS)).not.toBeNull();
+        a.parseCharNotification(CHR_WEIGHT, WSS(44));
+        expect(a.parseCharNotification(CHR_BODYCOMP, BCS)).not.toBeNull();
+        // The same record sent twice in one session is reported once.
+        a.parseCharNotification(CHR_WEIGHT, WSS(44));
+        expect(a.parseCharNotification(CHR_BODYCOMP, BCS)).toBeNull();
+
+        // Next session: both are already reported.
+        a.onSessionStart();
+        a.parseCharNotification(CHR_WEIGHT, WSS(50));
+        expect(a.parseCharNotification(CHR_BODYCOMP, BCS)).toBeNull();
+        a.parseCharNotification(CHR_WEIGHT, WSS(44));
+        expect(a.parseCharNotification(CHR_BODYCOMP, BCS)).toBeNull();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it('still reports a newer weigh-in', () => {
       hist();
       try {

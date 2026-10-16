@@ -163,6 +163,15 @@ export class BeurerBf500Adapter implements ScaleAdapterCore, GattWiring, MultiCh
    * Persisted by the runtime through dedupMark/restoreDedupMark.
    */
   private lastReportedMs = 0;
+  /**
+   * The mark as it stood when this session began, and the stamps already reported
+   * in it. Comparing against the mark of the session START, not the moving one,
+   * keeps the order the scale sends its stored records in from mattering: a
+   * newest-first replay would otherwise raise the mark on the first record and
+   * skip every older one behind it.
+   */
+  private markAtSessionStart = 0;
+  private readonly reportedThisSession = new Set<number>();
   /** users[].beurer_allow_weight_only: report a weigh-in that has a weight but no composition. */
   private weightOnly = false;
   /** The last composition frame was a zeroed stub (the impedance measurement did not run). */
@@ -201,6 +210,8 @@ export class BeurerBf500Adapter implements ScaleAdapterCore, GattWiring, MultiCh
     this.readingEmitted = false;
     this.replaySkipped = false;
     this.compWasStub = false;
+    this.markAtSessionStart = this.lastReportedMs;
+    this.reportedThisSession.clear();
   }
 
   async onConnected(ctx: ConnectionContext): Promise<void> {
@@ -664,7 +675,13 @@ export class BeurerBf500Adapter implements ScaleAdapterCore, GattWiring, MultiCh
       // A mark from the future is not a real record (a bad clock or an edited
       // file) and would silence the scale for good, so let it go.
       if (this.lastReportedMs > Date.now() + MARK_FUTURE_TOLERANCE_MS) this.lastReportedMs = 0;
-      if (this.skipReplays && stamp <= this.lastReportedMs) {
+      if (this.markAtSessionStart > Date.now() + MARK_FUTURE_TOLERANCE_MS) {
+        this.markAtSessionStart = 0;
+      }
+      if (
+        this.skipReplays &&
+        (stamp <= this.markAtSessionStart || this.reportedThisSession.has(stamp))
+      ) {
         this.replaySkipped = true;
         bleLog.debug(
           `Beurer BF500: skipping the stored weigh-in of ${this.cachedTimestamp?.toISOString()}, ` +
@@ -672,7 +689,8 @@ export class BeurerBf500Adapter implements ScaleAdapterCore, GattWiring, MultiCh
         );
         return null;
       }
-      this.lastReportedMs = stamp;
+      this.reportedThisSession.add(stamp);
+      if (stamp > this.lastReportedMs) this.lastReportedMs = stamp;
     }
     const reading: ScaleReading = {
       weight: this.cachedWeight,
@@ -701,6 +719,8 @@ export class BeurerBf500Adapter implements ScaleAdapterCore, GattWiring, MultiCh
     if (!Number.isFinite(mark) || mark <= 0) return;
     if (mark > Date.now() + MARK_FUTURE_TOLERANCE_MS) return;
     if (mark > this.lastReportedMs) this.lastReportedMs = mark;
+    // Called before the first session, which then starts from this mark.
+    if (mark > this.markAtSessionStart) this.markAtSessionStart = mark;
   }
 
   isComplete(reading: ScaleReading): boolean {
