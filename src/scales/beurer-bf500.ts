@@ -449,7 +449,7 @@ export class BeurerBf500Adapter implements ScaleAdapterCore, GattWiring, MultiCh
 
     this.consentAnswered = true;
     if (result === UCP_RESULT_SUCCESS) {
-      bleLog.debug('Beurer BF500: consent accepted, requesting a measurement');
+      bleLog.debug('Beurer BF500: consent accepted');
       void this.startMeasurement(this.session);
     } else if (result === UCP_RESULT_NOT_AUTHORIZED) {
       bleLog.warn(
