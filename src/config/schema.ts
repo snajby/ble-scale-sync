@@ -481,6 +481,13 @@ export const UserSchema = z.object({
    * the other Beurer adapters.
    */
   beurer_live_measurement: z.boolean().optional(),
+  /**
+   * Beurer BF500: skip a stored weigh-in that was already reported. Default
+   * true. The scale replays its last record on every connect and never clears
+   * it, so interval polling would export the same weigh-in each time. Set it to
+   * false to get every replay (for example to debug what the scale sends).
+   */
+  beurer_skip_replays: z.boolean().optional(),
 });
 
 export const RuntimeSchema = z.object({

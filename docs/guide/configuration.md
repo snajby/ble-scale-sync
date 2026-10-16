@@ -669,6 +669,7 @@ users:
 | `beurer_user_index`        | No       | `1`     | Scale user slot the consent code belongs to                                                                                                                                                                 |
 | `beurer_provision`         | No       | `false` | Write this profile into a Beurer scale that has no stored user                                                                                                                                              |
 | `beurer_live_measurement`  | No       | `true`  | Beurer BF500 only. `false` skips the take-measurement command after the consent, so the scale does not start a live weigh-in or light its display; for interval polling. Whether the scale then sends stored measurements is not established. |
+| `beurer_skip_replays`      | No       | `true`  | Beurer BF500 only. The scale replays its last stored weigh-in on every connect; `true` skips one that was already reported (tracked by the scale's own timestamp, kept across restarts). `false` reports every replay. |
 | `beurer_register_new_user` | No       | `false` | Create a new user record on the scale instead of consenting to one. One-shot; see below                                                                                                                     |
 
 ### Exporters

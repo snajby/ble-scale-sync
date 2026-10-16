@@ -163,6 +163,8 @@ export class BeurerBf500Adapter implements ScaleAdapterCore, GattWiring, MultiCh
    * Persisted by the runtime through dedupMark/restoreDedupMark.
    */
   private lastReportedMs = 0;
+  /** users[].beurer_skip_replays: false reports every replay of a stored weigh-in. */
+  private skipReplays = true;
   /** A replay was skipped this session, so "weight but no composition" is not true. */
   private replaySkipped = false;
   /**
@@ -221,6 +223,7 @@ export class BeurerBf500Adapter implements ScaleAdapterCore, GattWiring, MultiCh
     this.userIndex = ctx.scaleAuth?.userIndex ?? 1;
     this.registerNewUser = ctx.scaleAuth?.registerNewUser === true;
     this.liveMeasurement = ctx.scaleAuth?.liveMeasurement !== false;
+    this.skipReplays = ctx.scaleAuth?.skipReplays !== false;
 
     await ctx.write(CHR_CURRENT_TIME, this.buildCurrentTime(), true);
 
@@ -647,7 +650,7 @@ export class BeurerBf500Adapter implements ScaleAdapterCore, GattWiring, MultiCh
       // A mark from the future is not a real record (a bad clock or an edited
       // file) and would silence the scale for good, so let it go.
       if (this.lastReportedMs > Date.now() + MARK_FUTURE_TOLERANCE_MS) this.lastReportedMs = 0;
-      if (stamp <= this.lastReportedMs) {
+      if (this.skipReplays && stamp <= this.lastReportedMs) {
         this.replaySkipped = true;
         bleLog.debug(
           `Beurer BF500: skipping the stored weigh-in of ${this.cachedTimestamp?.toISOString()}, ` +
