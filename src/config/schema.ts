@@ -504,6 +504,20 @@ export const RuntimeSchema = z.object({
    */
   idle_rescan_delay: z.number().int().min(0).max(3600).default(5),
   /**
+   * Seconds to wait before the next scan after a session that connected, got
+   * frames from the scale and ended without a reading (the log says "Scale
+   * connected but sent no reading").
+   *
+   * Unset keeps the 5 s -> 60 s failure backoff, which is not a setting. Set it
+   * to poll on an interval: a short `ble.session_timeout_sec` plus this delay
+   * makes one connect per interval, for a scale that keeps measurements taken
+   * while nobody is connected and replays them on the next connect.
+   * `scan_cooldown` does not cover this case, it applies only after a reading.
+   * Linux/BlueZ (`node-ble`) only, because only that handler tells a session
+   * that answered from one that did not.
+   */
+  empty_session_delay: z.number().int().min(0).max(3600).optional(),
+  /**
    * Keep a reading whose export failed and retry it on a later cycle (#412).
    *
    * On by default. The failure it covers is silent and total: a cloud target

@@ -249,6 +249,28 @@ describe('buildReadingSource() wiring (#186, #246)', () => {
     expect(bundle.failureDelayMs?.(new Error('export failed'))).toBe(undefined);
   });
 
+  it('poll plan: empty_session_delay replaces the backoff only for a no-reading session', async () => {
+    h.createReadingSource.mockResolvedValue({ kind: 'poll', appliesGraceFloor: false });
+    const make = async (runtime: Record<string, unknown>) =>
+      buildReadingSource(
+        makeCtx({
+          bleHandler: 'auto',
+          config: { users: [{}], scale: {}, runtime } as never,
+        }),
+        ADAPTERS,
+        7,
+        30,
+      );
+    const noReading = tagBleFailure(new Error('timed out'), 'no-reading');
+
+    const unset = await make({ scan_cooldown: 5 });
+    expect(unset.failureDelayMs?.(noReading)).toBe(undefined);
+
+    const set = await make({ scan_cooldown: 5, empty_session_delay: 600 });
+    expect(set.failureDelayMs?.(noReading)).toBe(600_000);
+    expect(set.failureDelayMs?.(tagBleFailure(new Error('gatt'), 'wedge-suspect'))).toBe(undefined);
+  });
+
   // #417. 'idle' promises the full discovery timeout elapsed, which is what
   // makes even a zero idle_rescan_delay safe; a skipped connect makes no such
   // promise, so it backs off, and it does not say "No scale found" either.

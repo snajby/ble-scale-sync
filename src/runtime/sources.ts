@@ -160,10 +160,20 @@ export async function buildReadingSource(
     //
     // Read from config on every call so an edit lands on the next cycle, the
     // same way scan_cooldown is read in onSuccess below.
-    failureDelayMs: (err) =>
-      bleFailureKind(err) === 'idle'
-        ? (ctx.config.runtime?.idle_rescan_delay ?? DEFAULT_IDLE_RESCAN_DELAY_SEC) * 1000
-        : undefined,
+    failureDelayMs: (err) => {
+      const kind = bleFailureKind(err);
+      if (kind === 'idle') {
+        return (ctx.config.runtime?.idle_rescan_delay ?? DEFAULT_IDLE_RESCAN_DELAY_SEC) * 1000;
+      }
+      // A session that connected and got frames but no reading: the radio works,
+      // so a configured poll interval replaces the failure backoff. Unset keeps
+      // the backoff exactly as before.
+      if (kind === 'no-reading') {
+        const delaySec = ctx.config.runtime?.empty_session_delay;
+        if (delaySec !== undefined) return delaySec * 1000;
+      }
+      return undefined;
+    },
     onFailure: (err) => {
       // Idle cycles (radio alive, scale simply not advertising) must not trip
       // the watchdog (#213). Only GATT failures and dead-radio wedges count.
