@@ -95,6 +95,9 @@ export function applyEnvOverrides(config: AppConfig): AppConfig {
     watchdog_max_consecutive_failures: config.runtime?.watchdog_max_consecutive_failures ?? 10,
     watch_config: config.runtime?.watch_config ?? true,
     idle_rescan_delay: config.runtime?.idle_rescan_delay ?? 5,
+    // Optional with no default: unset keeps the failure backoff. It has to be
+    // carried through here, because this object replaces `config.runtime`.
+    empty_session_delay: config.runtime?.empty_session_delay,
     retry_failed_exports: config.runtime?.retry_failed_exports ?? true,
   };
 

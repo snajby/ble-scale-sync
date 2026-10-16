@@ -22,6 +22,20 @@ describe('env-overrides (focused unit tests for #184 split)', () => {
     vi.unstubAllEnvs();
   });
 
+  describe('applyEnvOverrides: runtime keys that are not overridable', () => {
+    it('carries runtime.empty_session_delay through, because the runtime block is rebuilt', () => {
+      const out = applyEnvOverrides(
+        baseConfig({ runtime: { empty_session_delay: 300 } as AppConfig['runtime'] }),
+      );
+      expect(out.runtime?.empty_session_delay).toBe(300);
+    });
+
+    it('leaves it unset when the config does not set it', () => {
+      const out = applyEnvOverrides(baseConfig());
+      expect(out.runtime?.empty_session_delay).toBeUndefined();
+    });
+  });
+
   describe('parseBleAdapterEnv', () => {
     it('returns undefined when BLE_ADAPTER is unset', () => {
       expect(parseBleAdapterEnv()).toBeUndefined();
