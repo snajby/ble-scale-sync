@@ -171,6 +171,42 @@ If you disable Garmin in the add-on UI, cached tokens are left in place so you c
 
 Add-on v1.8.1 bumps `garminconnect` to 0.3.x, which uses a new native auth engine and a new token format. Tokens from earlier versions (`oauth1_token.json`, `oauth2_token.json`) are incompatible and are removed automatically on first start. The add-on re-runs `setup_garmin.py` with the email and password you entered in the UI, so for non-MFA accounts no action is needed beyond restarting the add-on. MFA users follow the workaround above with the new single-file token.
 
+## Once-a-day sync from a Home Assistant automation
+
+With `continuous_mode` off (or removed from your config) the app does one run and exits. A run that ends with code 0 stops the add-on; a run that times out is retried until the add-on is stopped. Start it from an automation once a day and stop it afterwards:
+
+1. In the add-on's Info tab, switch **Start on boot** and **Watchdog** off, so nothing else starts it.
+2. Raise the session timeout (`ble.session_timeout_sec`, 30 to 60 for a Beurer BF500, set in your custom config): the scale needs time to accept the PIN and send its stored weigh-in.
+3. Find the add-on slug in its URL (`.../hassio/addon/<slug>/info`, for example `xxxxxxxx_ble_scale_sync`) and create the automation:
+
+```yaml
+alias: Scale daily sync
+trigger:
+  - platform: time
+    at: "07:30:00"
+action:
+  - service: hassio.addon_start
+    data:
+      addon: xxxxxxxx_ble_scale_sync
+  - wait_for_trigger:
+      - platform: state
+        entity_id: sensor.<your_weight_sensor>
+    timeout: "00:05:00"
+    continue_on_timeout: true
+  - service: hassio.addon_stop
+    data:
+      addon: xxxxxxxx_ble_scale_sync
+mode: single
+```
+
+Notes:
+
+- The scale keeps its last weigh-in and sends it on every connect. The app exports it once and remembers it, so on a day with no new weigh-in the run reports nothing new, times out and is stopped by the final step. That is normal.
+- Only the most recent weigh-in is sent. Two weigh-ins between syncs give you the later one.
+- Replace the `wait_for_trigger` step with `- delay: "00:03:00"` if you prefer a fixed wait. The final `addon_stop` is a harmless no-op when the add-on has already stopped itself.
+- The scale must accept a connection at that time. If yours only connects while awake, step on it shortly before the trigger.
+- A failed Garmin upload is queued and retried on the next start, for up to 72 hours.
+
 ## Advanced: Custom Config
 
 The Configuration tab covers the scale, the Bluetooth transport, the primary user profile, MQTT and Garmin Connect. Every other exporter (InfluxDB, Webhook, Ntfy, Telegram, Intervals.icu, Strava, Runalyze, Wger, HealthLog, Dreeve, File), every multi-user setup and the transport settings the tab does not have (several ESPHome proxies, the `source` filter of `ha-bluetooth`, the legacy ESPHome API password) are configured through a custom `config.yaml`. See the [exporters reference](https://blescalesync.dev/exporters) for each one's options.
@@ -240,6 +276,8 @@ A transport that cannot run stops the add-on with `ERROR:` and the reason, follo
 ### The app restarts on its own
 
 When the app cannot recover inside the running process (for example after ten failed scans in a row, or when a Bluetooth proxy stays silent), it exits on purpose. The add-on then starts it again by itself, without the Supervisor's Watchdog switch: the log shows `BLE Scale Sync exited with code N ...; restart #M in Ns`. The wait starts at 5 seconds and doubles while the app keeps exiting soon after starting, up to 5 minutes. A run of 10 minutes or more resets it. Stopping the add-on stops the app cleanly and does not start it again.
+
+A clean exit (code 0) is not a failure and is not restarted: with `continuous_mode` off, the add-on stops by itself once a run has finished. A run that times out (code 1, for example when the scale has nothing new) is retried with the same growing delay.
 
 If the log shows a long series of these restarts, the reason is in the lines just above each one.
 

@@ -1112,6 +1112,13 @@ while :; do
     log "Add-on stopping: BLE Scale Sync exited with code $APP_RC, not restarting."
     exit "$APP_RC"
   fi
+  # Exit 0 on its own means the job is done: a single run (continuous_mode off)
+  # that finished its sync. Continuous mode only exits non-zero on purpose, so
+  # this never ends a watcher that should keep running.
+  if [ "$APP_RC" -eq 0 ]; then
+    log "BLE Scale Sync finished (exit code 0); not restarting. Start the add-on again for the next run."
+    exit 0
+  fi
 
   RAN=$(($(date +%s) - STARTED))
   [ "$RAN" -lt "$RESTART_RESET_AFTER" ] || DELAY=$RESTART_DELAY_MIN
