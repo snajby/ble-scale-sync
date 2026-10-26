@@ -252,6 +252,11 @@ export async function run(argv: readonly string[]): Promise<void> {
     ) {
       log.info(`BLE adapter: ${ctx.bleAdapter}`);
     }
+    if (ctx.keepDebugKeys && resolveHandlerKey(ctx.bleHandler) !== 'node-ble') {
+      log.warn(
+        'ble.keep_debug_keys only applies to the built-in Linux BlueZ transport (node-ble); ignored.',
+      );
+    }
     if (ctx.adapterPrivacy && resolveHandlerKey(ctx.bleHandler) !== 'node-ble') {
       // Only node-ble pairs with the host adapter. Said once, here, rather than
       // left to look like an option that did nothing (#417).

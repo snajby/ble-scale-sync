@@ -22,6 +22,7 @@ version: 1
 #   session_timeout_sec: 20           # seconds one GATT session waits for a reading (default 120)
 #   pairing_retry_max_min: 60         # Linux node-ble: longest wait before asking again after an unconfirmed pairing (0 = every scan)
 #   preemptive_adapter_reset: false   # Linux node-ble: skip the btmgmt power-cycle after each session (default true; a link stuck in BlueZ is still recovered)
+#   keep_debug_keys: true             # Linux node-ble: keep pairings the scale makes with the Bluetooth debug key (Beurer BF500 re-pairs every weigh-in without it)
 #   adapter_privacy: true             # Linux node-ble: LE privacy so Beurer scales keep the pairing (adapter-wide, see docs)
 #   qn_protocol_byte: 0               # QN scales only: 0 to 255, see below
 #

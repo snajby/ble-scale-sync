@@ -42,6 +42,7 @@ import {
 } from './connection.js';
 import { ensurePairingAgent, setPairingTarget, userPromptCount } from './agent.js';
 import { ensureAdapterPrivacy, requireAdapterPrivacy } from './privacy.js';
+import { ensureDebugKeys } from './debug-keys.js';
 import {
   startDiscoverySafe,
   removeDevice,
@@ -371,6 +372,7 @@ export async function scanAndReadRaw(opts: ScanOptions): Promise<RawReading> {
     autoClearStaleBond,
     preemptiveAdapterReset,
     adapterPrivacy,
+    keepDebugKeys,
     pairingRetryMaxMin,
   } = opts;
 
@@ -481,6 +483,9 @@ export async function scanAndReadRaw(opts: ScanOptions): Promise<RawReading> {
         probeAdapter = btAdapter;
       }
     }
+
+    // No power-cycle needed, so it can run after the privacy step settles.
+    if (keepDebugKeys) await ensureDebugKeys(btAdapter);
 
     // Removing the scale's BlueZ object before the scan is what made the wait
     // below mean "it is advertising now": waitDevice() only polls for the

@@ -33,7 +33,7 @@ The sensors appear under **Settings** > **Devices & services** > **MQTT** after 
 
 With any transport but `local`:
 
-- the options that steer this host's adapter (`ble_adapter`, `auto_clear_stale_bond`, `preemptive_adapter_reset`, `adapter_privacy`, `pairing_retry_max_min`) are left out of the config, and the log names any you set;
+- the options that steer this host's adapter (`ble_adapter`, `auto_clear_stale_bond`, `preemptive_adapter_reset`, `adapter_privacy`, `keep_debug_keys`, `pairing_retry_max_min`) are left out of the config, and the log names any you set;
 - the adapter reset at startup is skipped;
 - `scan_cooldown`, `idle_rescan_delay` and `no_reading_rescan_delay` do nothing, since the add-on listens all the time.
 
@@ -56,6 +56,7 @@ The add-on writes `/data/config.yaml` from these options on every start, so a ch
 | `rmsc04_profile_byte`             | empty             | `ble.rmsc04_profile_byte`, [Renpho scales](/guide/scales/renpho)               |
 | `auto_clear_stale_bond`           | `false`           | `ble.auto_clear_stale_bond`, [Beurer scales](/guide/scales/beurer)             |
 | `preemptive_adapter_reset`        | `true`            | `ble.preemptive_adapter_reset`, `local` only                                   |
+| `keep_debug_keys`                 | `false`           | `ble.keep_debug_keys`, [BF500](/guide/scales/beurer#bf500-asks-to-pair-again-before-every-weigh-in), `local` only |
 | `adapter_privacy`                 | `false`           | `ble.adapter_privacy`, [Beurer scales](/guide/scales/beurer#pairing)           |
 | `pairing_retry_max_min`           | `60`              | `ble.pairing_retry_max_min`, [Beurer scales](/guide/scales/beurer#pairing)     |
 | `esphome_proxy_host`, `esphome_proxy_port`, `esphome_proxy_encryption_key` | empty, `6053`, empty | `ble.esphome_proxy`, [ESPHome proxy](/guide/esphome-proxy) |

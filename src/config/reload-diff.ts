@@ -94,6 +94,8 @@ export const RESTART_REQUIRED_KEYS = [
   // Read once into the context. Turning it off live would also leave the
   // adapter's privacy on, so a restart is the honest answer either way (#417).
   'ble.adapter_privacy',
+  // Read once into the context, like adapter_privacy.
+  'ble.keep_debug_keys',
   // The adapter list is built once, before the loop starts (run.ts), so a
   // hot-edited value changes nothing until a restart. Without this row the user
   // gets neither the effect nor the warning, which is neither half of the

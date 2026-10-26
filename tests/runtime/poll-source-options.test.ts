@@ -117,6 +117,20 @@ describe('PollReadingSource ble.pairing_retry_max_min (#471)', () => {
   });
 });
 
+describe('PollReadingSource ble.keep_debug_keys', () => {
+  beforeEach(() => {
+    scanAndReadRaw.mockReset();
+    scanAndReadRaw.mockResolvedValue({ weight: 80, impedance: 500 });
+  });
+
+  it('passes the start-up value, not the live config, since the key is restart-required', async () => {
+    const ctx = { ...makeCtx({ keep_debug_keys: false }), keepDebugKeys: true } as Ctx;
+    expect((await optionsFor(ctx)).keepDebugKeys).toBe(true);
+    const off = { ...makeCtx({ keep_debug_keys: true }), keepDebugKeys: false } as Ctx;
+    expect((await optionsFor(off)).keepDebugKeys).toBe(false);
+  });
+});
+
 describe('PollReadingSource ble.adapter_privacy (#417)', () => {
   beforeEach(() => {
     scanAndReadRaw.mockReset();

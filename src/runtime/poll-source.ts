@@ -78,6 +78,7 @@ export class PollReadingSource implements ReadingSource {
       preemptiveAdapterReset: this.ctx.config.ble?.preemptive_adapter_reset !== false,
       // From the start-up config, not the live one: restart-required (#417).
       adapterPrivacy: this.ctx.adapterPrivacy,
+      keepDebugKeys: this.ctx.keepDebugKeys,
       // Per cycle, so a lower cap lands on the next one (#471). The default
       // lives in the handler; null means unset. A single-shot run has no next
       // cycle to hold back and exits with its memory, so it records nothing

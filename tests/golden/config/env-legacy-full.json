@@ -83,7 +83,8 @@
     "watchConfig": true,
     "bleHandler": "auto",
     "bleAdapter": "hci1",
-    "adapterPrivacy": false
+    "adapterPrivacy": false,
+    "keepDebugKeys": false
   },
   "adapterRuntime": {
     "scaleMac": "AA:BB:CC:DD:EE:03",

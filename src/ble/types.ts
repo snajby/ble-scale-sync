@@ -217,6 +217,12 @@ export interface ScanOptions {
    */
   adapterPrivacy?: boolean;
   /**
+   * Make sure the kernel keeps debug-key pairings (`ble.keep_debug_keys`), for
+   * scales such as the Beurer BF500 that pair with the SMP debug key pair.
+   * node-ble only.
+   */
+  keepDebugKeys?: boolean;
+  /**
    * Longest wait, in minutes, before a bonding scale whose pairing nobody
    * confirmed is connected again (`ble.pairing_retry_max_min`, #471, D063).
    * Undefined means the handler's default; 0 never holds it back. node-ble only.
