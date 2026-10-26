@@ -261,6 +261,12 @@ export interface ScaleAuth {
    * record to the device and the slots are finite.
    */
   registerNewUser?: boolean;
+  /**
+   * Beurer BF500, experimental: false skips the take-measurement command after
+   * the consent, so no live weigh-in is started. Undefined means true. Whether
+   * the scale then sends stored measurements is not established on hardware.
+   */
+  liveMeasurement?: boolean;
 }
 
 export interface ConnectionContext {

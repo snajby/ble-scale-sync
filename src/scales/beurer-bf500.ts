@@ -133,6 +133,8 @@ export class BeurerBf500Adapter implements ScaleAdapterCore, GattWiring, MultiCh
   private pin = 0;
   /** users[].beurer_register_new_user: create a SIG user record. */
   private registerNewUser = false;
+  /** users[].beurer_live_measurement: false skips the take-measurement command. */
+  private liveMeasurement = true;
   /** True once this session registered a user, so the profile must be written. */
   private registeredThisSession = false;
   /** Latch so the post-consent steps run once per session. */
@@ -193,6 +195,7 @@ export class BeurerBf500Adapter implements ScaleAdapterCore, GattWiring, MultiCh
     this.pin = pin;
     this.userIndex = ctx.scaleAuth?.userIndex ?? 1;
     this.registerNewUser = ctx.scaleAuth?.registerNewUser === true;
+    this.liveMeasurement = ctx.scaleAuth?.liveMeasurement !== false;
 
     await ctx.write(CHR_CURRENT_TIME, this.buildCurrentTime(), true);
 
@@ -252,6 +255,12 @@ export class BeurerBf500Adapter implements ScaleAdapterCore, GattWiring, MultiCh
     try {
       if (this.registeredThisSession) await this.writeProfile(ctx, session);
       if (session !== this.session) return;
+      if (!this.liveMeasurement) {
+        // Polling: the scale is not asked to measure, so its display stays off.
+        // Whether it still sends stored measurements is unverified.
+        bleLog.debug('Beurer BF500: beurer_live_measurement is off, no measurement requested');
+        return;
+      }
       if (!ctx.availableChars.has(CHR_VENDOR_TAKE_MEASUREMENT)) {
         bleLog.warn('Beurer BF500: take-measurement characteristic 0xFFF4 not found.');
         return;

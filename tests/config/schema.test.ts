@@ -175,6 +175,16 @@ describe('UserSchema', () => {
     expect(result.success).toBe(false);
   });
 
+  it('accepts an optional boolean beurer_live_measurement and rejects other types', () => {
+    const off = UserSchema.safeParse({ ...VALID_USER, beurer_live_measurement: false });
+    expect(off.success && off.data.beurer_live_measurement).toBe(false);
+    const absent = UserSchema.safeParse(VALID_USER);
+    expect(absent.success && absent.data.beurer_live_measurement).toBeUndefined();
+    expect(UserSchema.safeParse({ ...VALID_USER, beurer_live_measurement: 'no' }).success).toBe(
+      false,
+    );
+  });
+
   it('accepts an optional beurer_pin and coerces a string (env ref) (#168)', () => {
     const numeric = UserSchema.safeParse({ ...VALID_USER, beurer_pin: 3752 });
     expect(numeric.success).toBe(true);
