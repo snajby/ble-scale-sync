@@ -381,6 +381,14 @@ export const UserSchema = z.object({
    */
   beurer_register_new_user: z.boolean().optional(),
   /**
+   * Beurer BF500: also report a weigh-in the user ended before the impedance
+   * measurement finished. Its composition frame is zeroed, so the reading has
+   * the weight and no body composition: the six composition values go out null
+   * whatever `estimate_body_composition` says. Off by default, which drops such
+   * a weigh-in. Read from the first user, like `beurer_pin`.
+   */
+  beurer_allow_weight_only: z.boolean().optional(),
+  /**
    * false: a weigh-in the scale measured no body composition for (no usable
    * impedance, no body fat of its own, or one the adapter did not use) exports
    * no body fat, water, bone mass, muscle mass, visceral fat or physique rating

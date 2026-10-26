@@ -382,12 +382,14 @@ describe('resolveScaleAuth', () => {
       beurer_user_index: 2,
       beurer_provision: true,
       beurer_register_new_user: false,
+      beurer_allow_weight_only: true,
     };
     expect(resolveScaleAuth(user)).toStrictEqual({
       pin: 1234,
       userIndex: 2,
       provision: true,
       registerNewUser: false,
+      allowWeightOnly: true,
     });
   });
 
@@ -397,6 +399,7 @@ describe('resolveScaleAuth', () => {
       userIndex: undefined,
       provision: undefined,
       registerNewUser: undefined,
+      allowWeightOnly: undefined,
     });
   });
 });

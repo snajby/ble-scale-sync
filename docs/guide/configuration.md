@@ -160,6 +160,7 @@ users:
 | `beurer_user_index`         | `1`     | User slot on the scale that the consent code belongs to. |
 | `beurer_provision`          | `false` | Write this profile into a Beurer scale that has no stored user. |
 | `beurer_register_new_user`  | `false` | Create a new user record on the scale, once. See [Beurer and Sanitas](./scales/beurer). |
+| `beurer_allow_weight_only`  | `false` | Beurer BF500: also report a weigh-in ended before the impedance measurement finished, with the weight and no body composition. Read from the first user. See [BF500](./scales/beurer#bf500). |
 
 The weight and time of each user's last live weigh-in are kept in `.last-live-weigh-ins.json` next to `config.yaml`, for the [replay check](/exporters#historical-readings).
 

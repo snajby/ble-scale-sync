@@ -158,5 +158,62 @@ describe('BeurerBf500Adapter', () => {
       const r = a.parseCharNotification(CHR_BODYCOMP, BCS);
       expect(r?.weight).toBeCloseTo(79.96, 1);
     });
+
+    // The impedance measurement did not run: a real weight, then a zeroed frame
+    // (`9803 0000 <bmr> 0000 0000 0000 0000`, the BF788 stub shape from #229).
+    const STUB = Buffer.from('98030000df1a000000000000', 'hex');
+    const connected = async (allowWeightOnly?: boolean) => {
+      const a = new BeurerBf500Adapter();
+      await a.onConnected(makeCtx({ scaleAuth: { pin: 1234, userIndex: 1, allowWeightOnly } }));
+      return a;
+    };
+
+    it('drops a weight followed by a zeroed composition frame by default', async () => {
+      const a = await connected();
+      a.parseCharNotification(CHR_WEIGHT, WSS);
+      expect(a.parseCharNotification(CHR_BODYCOMP, STUB)).toBeNull();
+    });
+
+    it('with allowWeightOnly emits the weight and exports no composition, whatever the estimate setting', async () => {
+      for (const estimateBodyComposition of [undefined, true, false]) {
+        const a = await connected(true);
+        a.parseCharNotification(CHR_WEIGHT, WSS);
+        const r = a.parseCharNotification(CHR_BODYCOMP, STUB);
+        expect(r?.weight).toBeCloseTo(79.96, 1);
+        expect(r?.impedance).toBe(0);
+        const p = a.computeMetrics(r!, { ...defaultProfile(), estimateBodyComposition });
+        expect(p.weight).toBeCloseTo(79.96, 1);
+        expect(p.bmi).toBeGreaterThan(0);
+        expect(p.bodyFatPercent).toBeNull();
+        expect(p.waterPercent).toBeNull();
+        expect(p.boneMass).toBeNull();
+        expect(p.muscleMass).toBeNull();
+        expect(p.visceralFat).toBeNull();
+        expect(p.physiqueRating).toBeNull();
+      }
+    });
+
+    it('with allowWeightOnly emits nothing for a weight with no composition frame at all', async () => {
+      const a = await connected(true);
+      expect(a.parseCharNotification(CHR_WEIGHT, WSS)).toBeNull();
+    });
+
+    it('with allowWeightOnly still emits the full reading when the composition is real', async () => {
+      const a = await connected(true);
+      a.parseCharNotification(CHR_WEIGHT, WSS);
+      const r = a.parseCharNotification(CHR_BODYCOMP, BCS);
+      const p = a.computeMetrics(r!, defaultProfile());
+      expect(p.bodyFatPercent).not.toBeNull();
+      expect(r?.impedance).toBeGreaterThan(0);
+    });
+
+    it('a stub does not mark the next weigh-in weight-only', async () => {
+      const a = await connected(true);
+      a.parseCharNotification(CHR_WEIGHT, WSS);
+      a.parseCharNotification(CHR_BODYCOMP, STUB);
+      a.parseCharNotification(CHR_WEIGHT, WSS);
+      const r = a.parseCharNotification(CHR_BODYCOMP, BCS);
+      expect(a.computeMetrics(r!, defaultProfile()).bodyFatPercent).not.toBeNull();
+    });
   });
 });

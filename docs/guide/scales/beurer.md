@@ -111,6 +111,8 @@ The BF500 speaks the same consent protocol as the BF720 family, but keeps its ve
 
 A BF500 whose batteries were removed holds no user records, and every consent then fails with `OPERATION_FAILED`. Follow [Register a New User](#register-a-new-user): the adapter registers the user, consents to the slot the scale assigned and writes the profile (date of birth, sex, height) into it.
 
+A BF500 weigh-in that ends before the impedance measurement finishes, for example when you step off early, has a real weight and a zeroed body-composition frame. By default the adapter drops it and the log says the session ended with a weight but no usable body-composition values. Set `beurer_allow_weight_only: true` on the first user to report it instead. The weight goes out like any other, and body fat, water, bone mass, muscle mass, visceral fat and the physique rating are empty, whatever `estimate_body_composition` says; each exporter leaves them out as described in [Exporters](/exporters#weigh-ins-without-body-composition). BMI, BMR and metabolic age come from your weight, height, age and sex. To send Garmin only the weight, also set `weight_only: true` on the Garmin exporter.
+
 ### Factory Reset and Deleting One User (BF915)
 
 Both use the **UNIT** button on the underside:

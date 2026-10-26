@@ -182,6 +182,16 @@ describe('UserSchema', () => {
     expect(fromEnv.success && fromEnv.data.beurer_pin).toBe(3752);
   });
 
+  it('accepts beurer_allow_weight_only as a boolean only', () => {
+    const on = UserSchema.safeParse({ ...VALID_USER, beurer_allow_weight_only: true });
+    expect(on.success && on.data.beurer_allow_weight_only).toBe(true);
+    expect(UserSchema.safeParse({ ...VALID_USER, beurer_allow_weight_only: 'yes' }).success).toBe(
+      false,
+    );
+    const absent = UserSchema.safeParse(VALID_USER);
+    expect(absent.success && absent.data.beurer_allow_weight_only).toBeUndefined();
+  });
+
   it('leaves beurer_pin undefined when absent (no coerce to 0) (#168)', () => {
     const result = UserSchema.safeParse(VALID_USER);
     expect(result.success && result.data.beurer_pin).toBeUndefined();
