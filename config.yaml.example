@@ -106,6 +106,7 @@ users:
     # beurer_user_index: 1                # scale user slot the code belongs to
     # beurer_provision: false             # write this profile into a scale that has none stored
     # beurer_skip_replays: true           # Beurer BF500: skip a stored weigh-in that was already reported
+    # beurer_live_measurement: false      # BF500, experimental: no live weigh-in on connect (unverified that stored ones still arrive)
 
     # Per-user exporters (optional). They are added to global_exporters; a type
     # listed here replaces the global entry of that type for this user.

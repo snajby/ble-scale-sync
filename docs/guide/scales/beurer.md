@@ -113,6 +113,17 @@ A BF500 whose batteries were removed holds no user records, and every consent th
 
 The BF500 replays its stored weigh-ins on every connect, so the adapter skips a record it already reported, tracked by the scale's own timestamp. If the scale clock is wrong and a new weigh-in is being skipped, set `beurer_skip_replays: false` on the user to report every replay.
 
+To poll on an interval without lighting the display, `beurer_live_measurement: false` skips the `0xFFF4` write:
+
+```yaml
+users:
+  - name: Alice
+    beurer_pin: 1234
+    beurer_live_measurement: false # experimental
+```
+
+This option is experimental. It is not established on hardware whether a BF500 sends its stored measurements without that write, so a poll may return nothing. Try it and read the log; leave it at the default `true` if no reading arrives.
+
 ### Factory Reset and Deleting One User (BF915)
 
 Both use the **UNIT** button on the underside:

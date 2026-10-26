@@ -132,6 +132,15 @@ describe('BeurerBf500Adapter', () => {
       expect(writesTo(ctx, CHR_TRIGGER)).toHaveLength(1);
     });
 
+    it('does not trigger a live measurement when beurer_live_measurement is false', async () => {
+      const a = new BeurerBf500Adapter();
+      const ctx = makeCtx({ scaleAuth: { pin: 1234, userIndex: 1, liveMeasurement: false } });
+      await a.onConnected(ctx);
+      a.parseCharNotification(CHR_UCP, Buffer.from([0x20, 0x02, 0x01]));
+      await flush();
+      expect(writesTo(ctx, CHR_TRIGGER)).toHaveLength(0);
+    });
+
     it('falls back to write-without-response for the trigger', async () => {
       const a = new BeurerBf500Adapter();
       const write = vi

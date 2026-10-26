@@ -383,6 +383,7 @@ describe('resolveScaleAuth', () => {
       beurer_provision: true,
       beurer_register_new_user: false,
       beurer_skip_replays: false,
+      beurer_live_measurement: false,
     };
     expect(resolveScaleAuth(user)).toStrictEqual({
       pin: 1234,
@@ -390,6 +391,7 @@ describe('resolveScaleAuth', () => {
       provision: true,
       registerNewUser: false,
       skipReplays: false,
+      liveMeasurement: false,
     });
   });
 
@@ -400,6 +402,7 @@ describe('resolveScaleAuth', () => {
       provision: undefined,
       registerNewUser: undefined,
       skipReplays: undefined,
+      liveMeasurement: undefined,
     });
   });
 });

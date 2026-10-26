@@ -100,6 +100,7 @@ export function resolveScaleAuth(user: UserConfig | undefined): ScaleAuth {
     provision: user?.beurer_provision,
     registerNewUser: user?.beurer_register_new_user,
     skipReplays: user?.beurer_skip_replays,
+    liveMeasurement: user?.beurer_live_measurement,
   };
 }
 

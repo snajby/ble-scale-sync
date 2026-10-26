@@ -388,6 +388,18 @@ export const UserSchema = z.object({
    * its timestamps cannot be trusted.
    */
   beurer_skip_replays: z.boolean().optional(),
+
+  /**
+   * EXPERIMENTAL. Beurer BF500: send the take-measurement command (0xFFF4)
+   * after the consent. Default true, which is what openScale does and what
+   * starts a live weigh-in and lights the scale's display.
+   *
+   * false connects without it, for interval polling that only wants stored
+   * weigh-ins. It is NOT established on hardware whether the BF500 sends its
+   * stored measurements without that command; try it and read the log. Ignored
+   * by the other Beurer adapters.
+   */
+  beurer_live_measurement: z.boolean().optional(),
   /**
    * false: a weigh-in the scale measured no body composition for (no usable
    * impedance, no body fat of its own, or one the adapter did not use) exports
