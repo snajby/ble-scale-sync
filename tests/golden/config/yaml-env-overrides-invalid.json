@@ -56,7 +56,8 @@
     "watchdogMaxFailures": 10,
     "watchConfig": true,
     "bleHandler": "auto",
-    "adapterPrivacy": false
+    "adapterPrivacy": false,
+    "keepDebugKeys": false
   },
   "adapterRuntime": {
     "displayUnit": "kg",

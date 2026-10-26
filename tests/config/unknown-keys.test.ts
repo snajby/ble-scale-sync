@@ -49,6 +49,7 @@ describe('collectUnknownKeys', () => {
         auto_clear_stale_bond: true,
         preemptive_adapter_reset: false,
         adapter_privacy: true,
+        keep_debug_keys: true,
         pairing_retry_max_min: 15,
         proxy_liveness_timeout_min: 45,
         // One handler at a time; every section run.sh can write is here, with

@@ -80,6 +80,7 @@ ble:
   handler: mqtt-proxy
   adapter: hci1
   adapter_privacy: true
+  keep_debug_keys: true
   force_scale_adapter: QN Scale
   session_timeout_sec: 90
   qn_protocol_byte: 255
@@ -263,6 +264,7 @@ const RELOAD_EDITS: Record<string, Record<string, unknown>> = {
     'runtime.retry_failed_exports': true,
     'runtime.watchdog_max_consecutive_failures': 10,
     'ble.adapter_privacy': false,
+    'ble.keep_debug_keys': false,
     'ble.force_scale_adapter': null,
   },
   'users-changed': { users: [] },

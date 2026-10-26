@@ -399,6 +399,7 @@ describe.skipIf(!HARNESS)(
             auto_clear_stale_bond: true,
             preemptive_adapter_reset: false,
             adapter_privacy: true,
+            keep_debug_keys: true,
             pairing_retry_max_min: 15,
             mqtt_enabled: false,
             garmin_enabled: true,
@@ -426,6 +427,7 @@ describe.skipIf(!HARNESS)(
           auto_clear_stale_bond: true
           preemptive_adapter_reset: false
           adapter_privacy: true
+          keep_debug_keys: true
           pairing_retry_max_min: 15
 
         scale:
@@ -707,6 +709,7 @@ describe.skipIf(!HARNESS)(
             scale_mac: 'F8:83:06:4E:B6:7E',
             ble_adapter: 'hci1',
             adapter_privacy: true,
+            keep_debug_keys: true,
             auto_clear_stale_bond: true,
             preemptive_adapter_reset: false,
             pairing_retry_max_min: 15,
@@ -715,12 +718,12 @@ describe.skipIf(!HARNESS)(
         const config = expectLoads(r);
         expect(config.ble?.scale_mac).toBe('F8:83:06:4E:B6:7E');
         expect(r.text).not.toMatch(
-          /adapter:|adapter_privacy|auto_clear_stale_bond|preemptive|pairing_retry/,
+          /adapter:|adapter_privacy|keep_debug_keys|auto_clear_stale_bond|preemptive|pairing_retry/,
         );
         expect(r.stdout).toContain(
           'NOTE: ble_transport esphome-proxy does not use the built-in Bluetooth adapter, so these ' +
             'options are ignored: ble_adapter, auto_clear_stale_bond, preemptive_adapter_reset, ' +
-            'adapter_privacy, pairing_retry_max_min.',
+            'adapter_privacy, keep_debug_keys, pairing_retry_max_min.',
         );
       });
 

@@ -136,7 +136,7 @@ export function adapterIndexOf(adapter: Adapter): number | undefined {
 
 export { stripAnsi, parseBtmgmtSettings, type BtmgmtSettings };
 
-interface BtmgmtRun {
+export interface BtmgmtRun {
   /** stdout + stderr, ANSI stripped, IRK redacted. */
   out: string;
   /** Why the process itself failed (spawn error, non-zero exit, timeout), never its argv. */
@@ -153,7 +153,7 @@ function redact(s: string, irk: string | undefined): string {
  * the kernel rejects a setting (setting_rsp in bluez client/mgmt.c), so callers
  * check the result with a separate `info`.
  */
-function runBtmgmt(args: string[], irk?: string): Promise<BtmgmtRun> {
+export function runBtmgmt(args: string[], irk?: string): Promise<BtmgmtRun> {
   return new Promise((resolve) => {
     try {
       execFile(
@@ -183,7 +183,7 @@ function runBtmgmt(args: string[], irk?: string): Promise<BtmgmtRun> {
   });
 }
 
-async function readSettings(index: number): Promise<BtmgmtSettings | undefined> {
+export async function readSettings(index: number): Promise<BtmgmtSettings | undefined> {
   const res = await runBtmgmt(['--index', String(index), 'info']);
   const settings = parseBtmgmtSettings(res.out);
   if (!settings) {

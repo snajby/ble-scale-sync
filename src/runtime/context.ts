@@ -41,6 +41,8 @@ export interface AppContext {
    * not switch the adapter's privacy off, so a reload must not look as if it did.
    */
   readonly adapterPrivacy: boolean;
+  /** `ble.keep_debug_keys`. Frozen at start-up, like adapterPrivacy. */
+  readonly keepDebugKeys: boolean;
   readonly esphomeProxy: EsphomeProxyConfig | undefined;
   readonly haBluetooth: HaBluetoothConfig | undefined;
   readonly signal: AbortSignal;
@@ -128,6 +130,7 @@ export function createAppContext(init: AppContextInit): AppContext {
     bleHandler: init.resolved.bleHandler,
     bleAdapter: init.resolved.bleAdapter,
     adapterPrivacy: init.resolved.adapterPrivacy,
+    keepDebugKeys: init.resolved.keepDebugKeys,
     esphomeProxy: init.resolved.esphomeProxy,
     haBluetooth: init.resolved.haBluetooth,
     signal: init.signal,

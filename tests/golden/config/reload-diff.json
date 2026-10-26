@@ -69,6 +69,11 @@
       "newValue": "false"
     },
     {
+      "key": "ble.keep_debug_keys",
+      "oldValue": "true",
+      "newValue": "false"
+    },
+    {
       "key": "ble.force_scale_adapter",
       "oldValue": "QN Scale",
       "newValue": "null"

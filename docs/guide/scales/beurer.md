@@ -49,6 +49,15 @@ pair <MAC>   # type the six-digit code the scale shows when asked
 
 Then start ble-scale-sync again. On Linux `beurer_pin` is also offered to BlueZ during pairing, so remove an existing bond (`bluetoothctl remove <MAC>`) before you change it.
 
+### BF500 Asks to Pair Again Before Every Weigh-in
+
+A BF500 pairs with the Bluetooth debug key pair (`btmon` shows `Key type: Debug key from P-256`). With the adapter's Debug Keys setting off, Linux does not reuse that key, so the scale asks for **SET** and a new pairing every time, although `bluetoothctl info` shows `Paired`, `Bonded` and `Trusted`.
+
+1. Set `ble.keep_debug_keys: true` (in the add-on: **Keep pairings made with the Bluetooth debug key**) and restart.
+2. Remove the old pairing once: `bluetoothctl remove <MAC>`, then pair through ble-scale-sync as above.
+
+The setting is adapter-wide and checked at the start of every scan cycle; the log says `Debug Keys is on` when it was switched on. Debug keys are publicly known, so a bond made this way gives no protection against someone in radio range, which is why it is opt-in. It needs `btmgmt` with root or `CAP_NET_ADMIN`, which the add-on and the Docker image have. It does not combine with the host identity key below; use one or the other.
+
 ### Pair with a Host Identity Key
 
 Some Beurer scales, the BF915 among them, keep a pairing only from a device that hands over an identity key while pairing. Linux hands over that key only with LE privacy on. Without it the scale asks for **SET** and a new pairing before every weigh-in, or the connect stalls at `Connected. Discovering services...` with `GATT server acquisition timed out`.
@@ -113,10 +122,11 @@ Both use the **UNIT** button on the underside:
 
 ## Configuration Options
 
-Defaults are in the [BLE reference](/guide/configuration#ble). Each applies on the next scan without a restart, except `adapter_privacy`.
+Defaults are in the [BLE reference](/guide/configuration#ble). Each applies on the next scan without a restart, except `adapter_privacy` and `keep_debug_keys`.
 
 - **`auto_clear_stale_bond: true`**: when the scale works once and then every connect fails, deletes the pairing the scale forgot and pairs again. It acts only on evidence that the scale refused the key, so a weak radio link does not clear a working pairing.
 - **`pairing_retry_max_min`**: the longest wait before asking again after nobody confirmed a pairing. The waits are 2 minutes three times, then double up to this value. `0` asks on every scan. Continuous mode only; a single run asks once per run.
+- **`keep_debug_keys: true`**: for a BF500 that asks for a new pairing before every weigh-in, see [BF500 asks to pair again](#bf500-asks-to-pair-again-before-every-weigh-in).
 - **`adapter_privacy: true`**: for a scale that asks for a new pairing before every weigh-in, see [Pair with a host identity key](#pair-with-a-host-identity-key).
 - **`preemptive_adapter_reset: false`**: skips the adapter power-cycle after each session. It is not the cause of lost pairings; turn it back on if the adapter starts missing the scale.
 - **`session_timeout_sec`**: shorter sessions free a scale that does not weigh while connected, such as the BF500.

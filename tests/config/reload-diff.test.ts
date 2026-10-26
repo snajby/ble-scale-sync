@@ -209,6 +209,14 @@ describe('diffRestartRequired', () => {
     ]);
   });
 
+  it('flags ble.keep_debug_keys, which is read once at start-up', () => {
+    const a = baseConfig({ ble: { handler: 'auto' } });
+    const b = baseConfig({ ble: { handler: 'auto', keep_debug_keys: true } });
+    expect(diffRestartRequired(a, b)).toEqual([
+      { key: 'ble.keep_debug_keys', oldValue: '<unset>', newValue: 'true' },
+    ]);
+  });
+
   it('does NOT flag ble.preemptive_adapter_reset, which the poll source re-reads per cycle', () => {
     const a = baseConfig({ ble: { handler: 'auto', preemptive_adapter_reset: true } });
     const b = baseConfig({ ble: { handler: 'auto', preemptive_adapter_reset: false } });

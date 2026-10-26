@@ -18,6 +18,7 @@
       "qn_result_ack": false,
       "rmsc04_profile_byte": "9e",
       "adapter_privacy": true,
+      "keep_debug_keys": true,
       "mqtt_proxy": {
         "broker_url": "mqtt://broker.local:1883",
         "device_id": "esp32-ble-proxy",
@@ -125,6 +126,7 @@
     "bleHandler": "mqtt-proxy",
     "bleAdapter": "hci1",
     "adapterPrivacy": true,
+    "keepDebugKeys": true,
     "mqttProxy": {
       "broker_url": "mqtt://broker.local:1883",
       "device_id": "esp32-ble-proxy",

@@ -155,6 +155,7 @@ function makeCtx(users: UserConfig[], overrides: CtxOverrides = {}): AppContext 
     bleHandler: overrides.bleHandler ?? 'auto',
     bleAdapter: undefined,
     adapterPrivacy: false,
+    keepDebugKeys: false,
     esphomeProxy: undefined,
     haBluetooth: undefined,
     signal: new AbortController().signal,
