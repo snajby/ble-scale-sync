@@ -329,7 +329,9 @@
       "onConnected",
       "onSessionStart",
       "onSessionEnd",
-      "parseCharNotification"
+      "parseCharNotification",
+      "dedupMark",
+      "restoreDedupMark"
     ]
   },
   {

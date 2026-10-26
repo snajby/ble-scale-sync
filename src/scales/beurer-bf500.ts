@@ -39,6 +39,9 @@ const CHR_VENDOR_USER_LIST = uuid16(0xfff1); // notify: one frame per user slot
 const CHR_VENDOR_ACTIVITY = uuid16(0xfff2); // write: activity level 1..5
 const CHR_VENDOR_TAKE_MEASUREMENT = uuid16(0xfff4); // write 0x00: start a measurement
 
+/** A stored mark further ahead of the host clock than this is not trusted. */
+const MARK_FUTURE_TOLERANCE_MS = 5 * 60 * 1000;
+
 /** Activity level written for a freshly registered user (openScale range 1..5). */
 const DEFAULT_ACTIVITY_LEVEL = 0x03;
 
@@ -145,6 +148,24 @@ export class BeurerBf500Adapter implements ScaleAdapterCore, GattWiring, MultiCh
   private consentSent = false;
   /** Whether a reading was emitted this session (gates the session-end warning). */
   private readingEmitted = false;
+  /**
+   * High-water mark: the scale's own timestamp (ms) of the newest reading this
+   * adapter reported. The BF500 replays its last stored weigh-in on every
+   * connect and never clears it, so without this each poll exports it again.
+   * Persisted by the runtime through dedupMark/restoreDedupMark.
+   */
+  private lastReportedMs = 0;
+  /**
+   * The mark as it stood when this session began, and the stamps already reported
+   * in it. Comparing against the mark of the session START, not the moving one,
+   * keeps the order the scale sends its stored records in from mattering: a
+   * newest-first replay would otherwise raise the mark on the first record and
+   * skip every older one behind it.
+   */
+  private markAtSessionStart = 0;
+  private readonly reportedThisSession = new Set<number>();
+  /** A replay was skipped this session, so "weight but no composition" is not true. */
+  private replaySkipped = false;
 
   /**
    * Name only. A nameless Beurer (company id 0x0611 plus a SIG service) stays
@@ -167,6 +188,9 @@ export class BeurerBf500Adapter implements ScaleAdapterCore, GattWiring, MultiCh
     this.consentAnswered = false;
     this.consentSent = false;
     this.readingEmitted = false;
+    this.replaySkipped = false;
+    this.markAtSessionStart = this.lastReportedMs;
+    this.reportedThisSession.clear();
   }
 
   async onConnected(ctx: ConnectionContext): Promise<void> {
@@ -439,7 +463,7 @@ export class BeurerBf500Adapter implements ScaleAdapterCore, GattWiring, MultiCh
           'Check the bond, the code and the slot.',
       );
     }
-    if (!this.readingEmitted && this.cachedWeight > 0) {
+    if (!this.readingEmitted && !this.replaySkipped && this.cachedWeight > 0) {
       bleLog.warn(
         `Beurer BF500: the session ended with a weight (${this.cachedWeight.toFixed(2)} kg) ` +
           'but no usable body-composition values, so no reading was emitted.',
@@ -608,6 +632,25 @@ export class BeurerBf500Adapter implements ScaleAdapterCore, GattWiring, MultiCh
    */
   private buildReading(): ScaleReading | null {
     if (this.cachedWeight <= 0 || this.cachedComp.fat == null) return null;
+    const stamp = this.cachedTimestamp?.getTime();
+    if (stamp !== undefined && Number.isFinite(stamp)) {
+      // A mark from the future is not a real record (a bad clock or an edited
+      // file) and would silence the scale for good, so let it go.
+      if (this.lastReportedMs > Date.now() + MARK_FUTURE_TOLERANCE_MS) this.lastReportedMs = 0;
+      if (this.markAtSessionStart > Date.now() + MARK_FUTURE_TOLERANCE_MS) {
+        this.markAtSessionStart = 0;
+      }
+      if (stamp <= this.markAtSessionStart || this.reportedThisSession.has(stamp)) {
+        this.replaySkipped = true;
+        bleLog.debug(
+          `Beurer BF500: skipping the stored weigh-in of ${this.cachedTimestamp?.toISOString()}, ` +
+            'already reported',
+        );
+        return null;
+      }
+      this.reportedThisSession.add(stamp);
+      if (stamp > this.lastReportedMs) this.lastReportedMs = stamp;
+    }
     const reading: ScaleReading = {
       weight: this.cachedWeight,
       impedance: this.cachedComp.impedance ?? 0,
@@ -620,6 +663,20 @@ export class BeurerBf500Adapter implements ScaleAdapterCore, GattWiring, MultiCh
     if (this.cachedUserIndex !== undefined) reading.userIndex = this.cachedUserIndex;
     this.readingEmitted = true;
     return reading;
+  }
+
+  /** The high-water mark, for the runtime to persist. */
+  dedupMark(): number | undefined {
+    return this.lastReportedMs || undefined;
+  }
+
+  /** Take back a mark an earlier process stored. Only ever raises it. */
+  restoreDedupMark(mark: number): void {
+    if (!Number.isFinite(mark) || mark <= 0) return;
+    if (mark > Date.now() + MARK_FUTURE_TOLERANCE_MS) return;
+    if (mark > this.lastReportedMs) this.lastReportedMs = mark;
+    // Called before the first session, which then starts from this mark.
+    if (mark > this.markAtSessionStart) this.markAtSessionStart = mark;
   }
 
   isComplete(reading: ScaleReading): boolean {

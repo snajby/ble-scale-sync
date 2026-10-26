@@ -147,6 +147,89 @@ describe('BeurerBf500Adapter', () => {
     });
   });
 
+  describe('replay de-duplication', () => {
+    // 0x07ea = 2026, 10, 16 05:44:31 on the scale clock; fat 19.4 %.
+    const mk = (min: number) =>
+      Buffer.from(`0e783eea070a1005${min.toString(16).padStart(2, '0')}1f0106011207`, 'hex');
+    const WSS = (min: number) => mk(min);
+    const BCS = Buffer.from('9803c200df1a9701cc2fca21a811', 'hex');
+    const hist = () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-10-16T10:00:00'));
+    };
+
+    it('reports a stored weigh-in once and skips the same record on the next connect', () => {
+      hist();
+      try {
+        const a = new BeurerBf500Adapter();
+        a.parseCharNotification(CHR_WEIGHT, WSS(44));
+        expect(a.parseCharNotification(CHR_BODYCOMP, BCS)).not.toBeNull();
+        expect(a.dedupMark()).toBeGreaterThan(0);
+
+        a.onSessionStart();
+        a.parseCharNotification(CHR_WEIGHT, WSS(44));
+        expect(a.parseCharNotification(CHR_BODYCOMP, BCS)).toBeNull();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('reports several stored weigh-ins of one session whatever order they arrive in', () => {
+      hist();
+      try {
+        const a = new BeurerBf500Adapter();
+        a.onSessionStart();
+        // Newest first: a single moving mark would skip the older record.
+        a.parseCharNotification(CHR_WEIGHT, WSS(50));
+        expect(a.parseCharNotification(CHR_BODYCOMP, BCS)).not.toBeNull();
+        a.parseCharNotification(CHR_WEIGHT, WSS(44));
+        expect(a.parseCharNotification(CHR_BODYCOMP, BCS)).not.toBeNull();
+        // The same record sent twice in one session is reported once.
+        a.parseCharNotification(CHR_WEIGHT, WSS(44));
+        expect(a.parseCharNotification(CHR_BODYCOMP, BCS)).toBeNull();
+
+        // Next session: both are already reported.
+        a.onSessionStart();
+        a.parseCharNotification(CHR_WEIGHT, WSS(50));
+        expect(a.parseCharNotification(CHR_BODYCOMP, BCS)).toBeNull();
+        a.parseCharNotification(CHR_WEIGHT, WSS(44));
+        expect(a.parseCharNotification(CHR_BODYCOMP, BCS)).toBeNull();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('still reports a newer weigh-in', () => {
+      hist();
+      try {
+        const a = new BeurerBf500Adapter();
+        a.parseCharNotification(CHR_WEIGHT, WSS(44));
+        a.parseCharNotification(CHR_BODYCOMP, BCS);
+        a.onSessionStart();
+        a.parseCharNotification(CHR_WEIGHT, WSS(50));
+        expect(a.parseCharNotification(CHR_BODYCOMP, BCS)).not.toBeNull();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('restores a mark from an earlier process, but ignores one from the future', () => {
+      hist();
+      try {
+        const a = new BeurerBf500Adapter();
+        a.restoreDedupMark(Date.parse('2026-10-16T05:44:31'));
+        a.parseCharNotification(CHR_WEIGHT, WSS(44));
+        expect(a.parseCharNotification(CHR_BODYCOMP, BCS)).toBeNull();
+
+        const b = new BeurerBf500Adapter();
+        b.restoreDedupMark(Date.parse('2030-01-01T00:00:00'));
+        expect(b.dedupMark()).toBeUndefined();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
+
   describe('measurement parsing', () => {
     // Frames decoded from the #168 openScale HCI snoop (same SIG formats as the BF720).
     const WSS = Buffer.from('0e783eea07050c12353601ee002607', 'hex');
