@@ -125,6 +125,19 @@ type CoveredMetricKey = (typeof HA_METRICS)[number]['key'];
 const _haMetricsAreComplete: Record<Exclude<keyof MqttStatePayload, CoveredMetricKey>, never> = {};
 void _haMetricsAreComplete;
 
+/**
+ * What every weigh-in has: the weight and the BMI that follows from it. They
+ * (and the timestamp sensor) read their own message, `<topic>/weight`, so
+ * Home Assistant gets the weight on its own and a missing or late composition
+ * never holds the weight sensor back.
+ */
+const WEIGHT_SET: readonly (keyof MqttStatePayload)[] = ['weight', 'bmi'];
+
+/** The set of the metric's own message: the topic suffix its sensor reads. */
+function messageFor(key: keyof MqttStatePayload): 'weight' | 'composition' {
+  return key === 'timestamp' || WEIGHT_SET.includes(key) ? 'weight' : 'composition';
+}
+
 export const mqttSchema: ExporterSchema = {
   name: 'mqtt',
   displayName: 'MQTT',
@@ -318,7 +331,7 @@ export class MqttExporter implements Exporter {
       const payload: Record<string, unknown> = {
         name: metric.name,
         unique_id: `${deviceId}_${metric.key}`,
-        state_topic: dataTopic,
+        state_topic: `${dataTopic}/${messageFor(metric.key)}`,
         // HA renders a missing key as '' and logs a warning for it; 'None' is
         // its own word for unknown.
         value_template: metric.optional
@@ -389,7 +402,24 @@ export class MqttExporter implements Exporter {
       timestamp: (context?.timestamp ?? new Date()).toISOString(),
       ...data,
     };
-    const payload = JSON.stringify(state);
+    // Three retained messages. The weight and the composition are separate so
+    // Home Assistant has the weight at once, whatever the scale measures after
+    // it. Each carries the same timestamp. The combined message on the base
+    // topic is what every release before this one published; it stays so
+    // existing automations and sensors reading it keep working.
+    const pick = (set: 'weight' | 'composition'): string =>
+      JSON.stringify(
+        Object.fromEntries(
+          Object.entries(state).filter(
+            ([key]) => key === 'timestamp' || messageFor(key as keyof MqttStatePayload) === set,
+          ),
+        ),
+      );
+    const messages: Array<[string, string]> = [
+      [`${dataTopic}/weight`, pick('weight')],
+      [`${dataTopic}/composition`, pick('composition')],
+      [dataTopic, JSON.stringify(state)],
+    ];
 
     return withRetry(
       async () => {
@@ -417,11 +447,14 @@ export class MqttExporter implements Exporter {
           }
 
           await withTimeout(
-            client.publishAsync(dataTopic, payload, { qos, retain }),
+            Promise.all(messages.map(([t, p]) => client.publishAsync(t, p, { qos, retain }))),
             OPERATION_TIMEOUT_MS,
             'MQTT publish timed out',
           );
-          log.info(`Published to ${dataTopic} (qos=${qos}, retain=${retain}).`);
+          log.info(
+            `Published weight, composition and combined messages under ${dataTopic} ` +
+              `(qos=${qos}, retain=${retain}).`,
+          );
           return { success: true };
         } finally {
           // endQuietly never throws, so a failed disconnect cannot turn a
