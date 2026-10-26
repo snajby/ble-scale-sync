@@ -107,6 +107,7 @@ users:
     # beurer_provision: false             # write this profile into a scale that has none stored
     # beurer_skip_replays: true           # Beurer BF500: skip a stored weigh-in that was already reported
     # beurer_live_measurement: false      # BF500, experimental: no live weigh-in on connect (unverified that stored ones still arrive)
+    # beurer_allow_weight_only: false     # BF500: also report a weigh-in ended before the impedance measurement (weight, no composition)
 
     # Per-user exporters (optional). They are added to global_exporters; a type
     # listed here replaces the global entry of that type for this user.

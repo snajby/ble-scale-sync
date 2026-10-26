@@ -108,6 +108,7 @@ users:
     weight_range: { min: 75, max: 95 }
     last_known_weight: 84.2
     beurer_user_index: 1
+    beurer_allow_weight_only: true
     exporters:
       - type: webhook
         url: "https://hooks.example/dad"

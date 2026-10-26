@@ -138,6 +138,10 @@ export class BeurerBf500Adapter implements ScaleAdapterCore, GattWiring, MultiCh
   private registerNewUser = false;
   /** users[].beurer_live_measurement: false skips the take-measurement command. */
   private liveMeasurement = true;
+  /** users[].beurer_allow_weight_only: report a weigh-in that has a weight but no composition. */
+  private allowWeightOnly = false;
+  /** The last composition frame was a zeroed or unavailable stub (the impedance measurement did not run). */
+  private compWasStub = false;
   /** True once this session registered a user, so the profile must be written. */
   private registeredThisSession = false;
   /** Latch so the post-consent steps run once per session. */
@@ -186,6 +190,7 @@ export class BeurerBf500Adapter implements ScaleAdapterCore, GattWiring, MultiCh
     this.cachedTimestamp = undefined;
     this.cachedUserIndex = undefined;
     this.cachedComp = {};
+    this.compWasStub = false;
     this.registeredThisSession = false;
     this.measurementRequested = false;
     this.userSlotsSeen = 0;
@@ -223,6 +228,7 @@ export class BeurerBf500Adapter implements ScaleAdapterCore, GattWiring, MultiCh
     this.registerNewUser = ctx.scaleAuth?.registerNewUser === true;
     this.skipReplays = ctx.scaleAuth?.skipReplays !== false;
     this.liveMeasurement = ctx.scaleAuth?.liveMeasurement !== false;
+    this.allowWeightOnly = ctx.scaleAuth?.allowWeightOnly === true;
 
     await ctx.write(CHR_CURRENT_TIME, this.buildCurrentTime(), true);
 
@@ -392,7 +398,9 @@ export class BeurerBf500Adapter implements ScaleAdapterCore, GattWiring, MultiCh
     }
     if (charUuid === CHR_BODY_COMPOSITION) {
       this.parseBodyComposition(data);
-      return this.buildReading();
+      // The stub says the scale had no impedance for this weigh-in; the weight
+      // in front of it is still a real measurement.
+      return this.buildReading(this.allowWeightOnly && this.compWasStub);
     }
     return null;
   }
@@ -509,6 +517,7 @@ export class BeurerBf500Adapter implements ScaleAdapterCore, GattWiring, MultiCh
     if (weightKg !== undefined && weightKg > 0 && Number.isFinite(weightKg)) {
       this.cachedWeight = weightKg;
       this.cachedComp = {};
+      this.compWasStub = false;
       this.cachedTimestamp = trustedScaleTime(timestamp);
       this.cachedUserIndex = userIndex;
     }
@@ -559,10 +568,12 @@ export class BeurerBf500Adapter implements ScaleAdapterCore, GattWiring, MultiCh
     // models, unlike the zeroed stubs, but it is the same class of fabrication.
     if (fat === 0 || fat === 0xffff) {
       this.cachedComp = {};
+      this.compWasStub = true;
       return;
     }
 
     this.cachedComp.fat = fat * 0.1;
+    this.compWasStub = false;
     off += 2;
 
     if (flags & 0x0002) {
@@ -642,8 +653,9 @@ export class BeurerBf500Adapter implements ScaleAdapterCore, GattWiring, MultiCh
    * runtime, not this adapter, decides from its age whether it is a stored
    * record. The user slot goes on when the frames name one.
    */
-  private buildReading(): ScaleReading | null {
-    if (this.cachedWeight <= 0 || this.cachedComp.fat == null) return null;
+  private buildReading(weightOnly = false): ScaleReading | null {
+    if (this.cachedWeight <= 0) return null;
+    if (!weightOnly && this.cachedComp.fat == null) return null;
     const stamp = this.cachedTimestamp?.getTime();
     if (stamp !== undefined && Number.isFinite(stamp)) {
       // A mark from the future is not a real record (a bad clock or an edited
@@ -668,11 +680,11 @@ export class BeurerBf500Adapter implements ScaleAdapterCore, GattWiring, MultiCh
     }
     const reading: ScaleReading = {
       weight: this.cachedWeight,
-      impedance: this.cachedComp.impedance ?? 0,
+      impedance: weightOnly ? 0 : (this.cachedComp.impedance ?? 0),
       // A snapshot: computeMetrics() runs once the session has resolved, when the
       // live cachedComp holds whatever came LAST, not what this reading was built
       // from (#394).
-      scaleComposition: { ...this.cachedComp },
+      scaleComposition: weightOnly ? {} : { ...this.cachedComp },
     };
     if (this.cachedTimestamp) reading.timestamp = this.cachedTimestamp;
     if (this.cachedUserIndex !== undefined) reading.userIndex = this.cachedUserIndex;
@@ -717,6 +729,10 @@ export class BeurerBf500Adapter implements ScaleAdapterCore, GattWiring, MultiCh
       if (bone > 0) comp.bone = bone;
     }
 
-    return buildPayload(weight, reading.impedance, comp, profile);
+    // A reading without a body fat is the weight-only one (buildReading emits
+    // no other): its composition is not estimated, whatever the user chose for
+    // estimate_body_composition, so the six values go out null.
+    const p = c.fat == null ? { ...profile, estimateBodyComposition: false } : profile;
+    return buildPayload(weight, reading.impedance, comp, p);
   }
 }

@@ -55,7 +55,8 @@
             "url": "https://hooks.example/dad"
           }
         ],
-        "beurer_user_index": 1
+        "beurer_user_index": 1,
+        "beurer_allow_weight_only": true
       },
       {
         "name": "Mom",

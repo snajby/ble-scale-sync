@@ -272,6 +272,12 @@ export interface ScaleAuth {
    * the scale then sends stored measurements is not established on hardware.
    */
   liveMeasurement?: boolean;
+  /**
+   * Beurer BF500 (`users[].beurer_allow_weight_only`): emit a weigh-in whose
+   * body-composition frame is zeroed, with the weight and no composition.
+   * Undefined or false drops it, as before.
+   */
+  allowWeightOnly?: boolean;
 }
 
 export interface ConnectionContext {

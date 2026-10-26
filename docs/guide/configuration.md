@@ -162,6 +162,7 @@ users:
 | `beurer_register_new_user`  | `false` | Create a new user record on the scale, once. See [Beurer and Sanitas](./scales/beurer).                                                                                                                                           |
 | `beurer_skip_replays`       | `true`  | Beurer BF500 only. The scale replays its stored weigh-ins on every connect; `true` skips one that was already reported. `false` reports every replay, for a scale whose clock is wrong.                                           |
 | `beurer_live_measurement`   | `true`  | Experimental, BF500 only. `false` skips the take-measurement command after the consent, so the scale starts no live weigh-in and its display stays off. Not verified on hardware that the scale still sends stored measurements. See [Beurer and Sanitas](./scales/beurer#bf500). |
+| `beurer_allow_weight_only`  | `false` | Beurer BF500: also report a weigh-in ended before the impedance measurement finished, with the weight and no body composition. Read from the first user. See [BF500](./scales/beurer#bf500). |
 
 The weight and time of each user's last live weigh-in are kept in `.last-live-weigh-ins.json` next to `config.yaml`, for the [replay check](/exporters#historical-readings).
 

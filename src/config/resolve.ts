@@ -101,6 +101,7 @@ export function resolveScaleAuth(user: UserConfig | undefined): ScaleAuth {
     registerNewUser: user?.beurer_register_new_user,
     skipReplays: user?.beurer_skip_replays,
     liveMeasurement: user?.beurer_live_measurement,
+    allowWeightOnly: user?.beurer_allow_weight_only,
   };
 }
 

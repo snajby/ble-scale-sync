@@ -124,6 +124,8 @@ users:
 
 This option is experimental. It is not established on hardware whether a BF500 sends its stored measurements without that write, so a poll may return nothing. Try it and read the log; leave it at the default `true` if no reading arrives.
 
+A BF500 weigh-in that ends before the impedance measurement finishes, for example when you step off early, has a real weight and a zeroed body-composition frame. By default the adapter drops it and the log says the session ended with a weight but no usable body-composition values. Set `beurer_allow_weight_only: true` on the first user to report it instead. The weight goes out like any other, and body fat, water, bone mass, muscle mass, visceral fat and the physique rating are empty, whatever `estimate_body_composition` says; each exporter leaves them out as described in [Exporters](/exporters#weigh-ins-without-body-composition). BMI, BMR and metabolic age come from your weight, height, age and sex. To send Garmin only the weight, also set `weight_only: true` on the Garmin exporter.
+
 ### Factory Reset and Deleting One User (BF915)
 
 Both use the **UNIT** button on the underside:
