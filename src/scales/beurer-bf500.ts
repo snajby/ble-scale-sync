@@ -170,6 +170,12 @@ export class BeurerBf500Adapter implements ScaleAdapterCore, GattWiring, MultiCh
    */
   private markAtSessionStart = 0;
   private readonly reportedThisSession = new Set<number>();
+  /**
+   * Stamps reported as weight-only in this session. The scale can send a zeroed
+   * composition frame and then the real one for the same weigh-in, so a full
+   * record may replace a weight-only one with the same stamp.
+   */
+  private readonly weightOnlyThisSession = new Set<number>();
   /** users[].beurer_skip_replays: false reports every replay of a stored weigh-in. */
   private skipReplays = true;
   /** A replay was skipped this session, so "weight but no composition" is not true. */
@@ -200,6 +206,7 @@ export class BeurerBf500Adapter implements ScaleAdapterCore, GattWiring, MultiCh
     this.replaySkipped = false;
     this.markAtSessionStart = this.lastReportedMs;
     this.reportedThisSession.clear();
+    this.weightOnlyThisSession.clear();
   }
 
   async onConnected(ctx: ConnectionContext): Promise<void> {
@@ -664,8 +671,10 @@ export class BeurerBf500Adapter implements ScaleAdapterCore, GattWiring, MultiCh
       if (this.markAtSessionStart > Date.now() + MARK_FUTURE_TOLERANCE_MS) {
         this.markAtSessionStart = 0;
       }
+      const upgrade = !weightOnly && this.weightOnlyThisSession.has(stamp);
       if (
         this.skipReplays &&
+        !upgrade &&
         (stamp <= this.markAtSessionStart || this.reportedThisSession.has(stamp))
       ) {
         this.replaySkipped = true;
@@ -676,6 +685,8 @@ export class BeurerBf500Adapter implements ScaleAdapterCore, GattWiring, MultiCh
         return null;
       }
       this.reportedThisSession.add(stamp);
+      if (weightOnly) this.weightOnlyThisSession.add(stamp);
+      else this.weightOnlyThisSession.delete(stamp);
       if (stamp > this.lastReportedMs) this.lastReportedMs = stamp;
     }
     const reading: ScaleReading = {

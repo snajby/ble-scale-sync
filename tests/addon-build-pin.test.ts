@@ -22,7 +22,6 @@ const lf = (s: string): string => s.replace(/\r\n/g, '\n');
 
 const BUILD_PATH = 'ble-scale-sync-addon/build.yaml';
 const CONFIG_PATH = 'ble-scale-sync-addon/config.yaml';
-const IMAGE = 'ghcr.io/kristianp26/ble-scale-sync';
 const ARCHES = ['amd64', 'aarch64', 'armv7'];
 
 const build = lf(readFileSync(resolve(BUILD_PATH), 'utf8'));
@@ -71,12 +70,23 @@ const reportedVersion = (yamlText: string): unknown =>
 const buildFrom = (yamlText: string): Record<string, unknown> =>
   (parse(yamlText) as { build_from: Record<string, unknown> }).build_from;
 
+/**
+ * The image repository the add-on wraps, taken from build.yaml itself: upstream
+ * publishes `ghcr.io/kristianp26/ble-scale-sync`, and a fork builds from its own
+ * owner (`ghcr.io/<owner>/ble-scale-sync`). What this test guards is that the
+ * tag is exact, not which account owns the image, so only the shape is checked.
+ */
+const IMAGE_SHAPE = /^ghcr\.io\/[a-z0-9][a-z0-9-]*\/ble-scale-sync$/;
+const imageOf = (ref: unknown): string => String(ref).replace(/:[^:/]*$/, '');
+const IMAGE = imageOf(buildFrom(build).amd64);
+
 describe('add-on base image pin (I-03)', () => {
   it('builds every architecture FROM the release the add-on reports, not :latest', () => {
     const version = reportedVersion(config);
     expect(typeof version, `no version in ${CONFIG_PATH}`).toBe('string');
     const from = buildFrom(build);
     expect(Object.keys(from).sort()).toEqual([...ARCHES].sort());
+    expect(IMAGE, `${BUILD_PATH} image repository`).toMatch(IMAGE_SHAPE);
     for (const arch of ARCHES) {
       expect(from[arch], `${BUILD_PATH} build_from.${arch}`).toBe(`${IMAGE}:${version}`);
     }
@@ -100,6 +110,8 @@ describe('add-on base image pin (I-03)', () => {
         `${IMAGE}:${next}`,
       );
     }
+    // All three arches name the same repository, so the tag is the only difference.
+    for (const arch of ARCHES) expect(imageOf(buildFrom(build)[arch])).toBe(IMAGE);
     // The only lines that change are the three image references.
     const before = build.split('\n');
     const changed = bumped.split('\n').filter((line, i) => line !== before[i]);
