@@ -22,6 +22,8 @@ const MEASURED_AT = new Date('2026-10-20T21:30:00Z');
 const MEASURED_AT_ISO = '2026-10-20T21:30:00.000Z';
 const STATE_JSON = JSON.stringify({ timestamp: MEASURED_AT_ISO, ...samplePayload });
 
+const BASE = 'scale/body-composition';
+
 const defaultConfig: MqttConfig = {
   brokerUrl: 'mqtt://localhost:1883',
   topic: 'scale/body-composition',
@@ -43,6 +45,13 @@ const { fakeMqtt } = await vi.hoisted(async () => {
 vi.mock('mqtt', () => ({
   connect: fakeMqtt.connect,
 }));
+
+/** The JSON body published to one topic. */
+function published(topic: string): Record<string, unknown> {
+  const call = fakeMqtt.publishAsync.mock.calls.find((c: unknown[]) => c[0] === topic);
+  if (!call) throw new Error(`nothing published to ${topic}`);
+  return JSON.parse(call[1] as string);
+}
 
 describe('MqttExporter', () => {
   beforeEach(() => {
@@ -110,7 +119,8 @@ describe('MqttExporter', () => {
 
     expect(result.success).toBe(false);
     expect(result.error).toBe('publish timeout');
-    expect(fakeMqtt.publishAsync).toHaveBeenCalledTimes(3);
+    // Three messages per attempt, and the first rejection fails the attempt.
+    expect(fakeMqtt.publishAsync).toHaveBeenCalledTimes(9);
   });
 
   it('always calls endAsync even if publish fails', async () => {
@@ -143,7 +153,7 @@ describe('MqttExporter', () => {
     const exporter = new MqttExporter(defaultConfig);
     await exporter.export({ ...samplePayload, bodyFatPercent: null, physiqueRating: null });
 
-    const state = JSON.parse(fakeMqtt.publishAsync.mock.calls[0][1] as string);
+    const state = published(`${BASE}/composition`);
     expect(state.bodyFatPercent).toBeNull();
     expect(state.physiqueRating).toBeNull();
     expect(state.bmr).toBe(1750);
@@ -156,7 +166,10 @@ describe('MqttExporter', () => {
       const exporter = new MqttExporter(defaultConfig);
       await exporter.export(samplePayload, { timestamp: MEASURED_AT });
 
-      const { timestamp, ...rest } = JSON.parse(fakeMqtt.publishAsync.mock.calls[0][1] as string);
+      for (const topic of [BASE, `${BASE}/weight`, `${BASE}/composition`]) {
+        expect(published(topic).timestamp).toBe(MEASURED_AT_ISO);
+      }
+      const { timestamp, ...rest } = published(BASE);
       expect(timestamp).toBe(MEASURED_AT_ISO);
       expect(rest).toEqual(samplePayload);
     });
@@ -167,8 +180,7 @@ describe('MqttExporter', () => {
       const exporter = new MqttExporter(defaultConfig);
       await exporter.export(samplePayload);
 
-      const state = JSON.parse(fakeMqtt.publishAsync.mock.calls[0][1] as string);
-      expect(state.timestamp).toBe(MEASURED_AT_ISO);
+      expect(published(`${BASE}/weight`).timestamp).toBe(MEASURED_AT_ISO);
     });
 
     it('sends the same timestamp on every retry of one export', async () => {
@@ -188,7 +200,80 @@ describe('MqttExporter', () => {
         fakeMqtt.publishAsync.mock.calls.map(
           (c: unknown[]) => JSON.parse(c[1] as string).timestamp,
         ),
-      ).toEqual([MEASURED_AT_ISO, MEASURED_AT_ISO]);
+      ).toEqual(Array(6).fill(MEASURED_AT_ISO));
+    });
+  });
+
+  describe('weight and composition messages', () => {
+    const cfg: MqttConfig = { ...defaultConfig, haDiscovery: true };
+    const withUser = { userSlug: 'filip', userName: 'Filip', timestamp: MEASURED_AT };
+
+    it('publishes the weight and BMI on their own message', async () => {
+      await new MqttExporter(cfg).export(samplePayload, withUser);
+      expect(published(`${BASE}/filip/weight`)).toEqual({
+        timestamp: MEASURED_AT_ISO,
+        weight: 80,
+        bmi: 23.9,
+      });
+    });
+
+    it('publishes everything else on the composition message', async () => {
+      await new MqttExporter(cfg).export(samplePayload, withUser);
+      const { weight: _w, bmi: _b, ...rest } = samplePayload;
+      expect(published(`${BASE}/filip/composition`)).toEqual({
+        timestamp: MEASURED_AT_ISO,
+        ...rest,
+      });
+    });
+
+    it('still publishes the combined message on the base topic, as before', async () => {
+      await new MqttExporter(cfg).export(samplePayload, withUser);
+      expect(published(`${BASE}/filip`)).toEqual({ timestamp: MEASURED_AT_ISO, ...samplePayload });
+    });
+
+    it('publishes the weight message first, with the configured qos and retain', async () => {
+      await new MqttExporter({ ...cfg, qos: 0, retain: false }).export(samplePayload, withUser);
+      const data = fakeMqtt.publishAsync.mock.calls.filter(
+        (c: unknown[]) =>
+          !(c[0] as string).startsWith('homeassistant/') && !(c[0] as string).endsWith('/status'),
+      );
+      expect(data.map((c: unknown[]) => c[0])).toEqual([
+        `${BASE}/filip/weight`,
+        `${BASE}/filip/composition`,
+        `${BASE}/filip`,
+      ]);
+      for (const c of data) expect(c[2]).toEqual({ qos: 0, retain: false });
+    });
+
+    it('points weight, BMI and the last weigh-in at the weight message, the rest at composition', async () => {
+      await new MqttExporter(cfg).export(samplePayload, withUser);
+      const state = (key: string) =>
+        published(`homeassistant/sensor/ble-scale-sync-filip/${key}/config`).state_topic;
+      expect(state('weight')).toBe(`${BASE}/filip/weight`);
+      expect(state('bmi')).toBe(`${BASE}/filip/weight`);
+      expect(state('timestamp')).toBe(`${BASE}/filip/weight`);
+      expect(state('bodyFatPercent')).toBe(`${BASE}/filip/composition`);
+      expect(state('impedance')).toBe(`${BASE}/filip/composition`);
+      expect(state('metabolicAge')).toBe(`${BASE}/filip/composition`);
+    });
+
+    it('keeps the weight message complete when the composition is withheld', async () => {
+      const bare = {
+        ...samplePayload,
+        bodyFatPercent: null,
+        waterPercent: null,
+        boneMass: null,
+        muscleMass: null,
+        visceralFat: null,
+        physiqueRating: null,
+      };
+      await new MqttExporter(cfg).export(bare, withUser);
+      expect(published(`${BASE}/filip/weight`)).toEqual({
+        timestamp: MEASURED_AT_ISO,
+        weight: 80,
+        bmi: 23.9,
+      });
+      expect(published(`${BASE}/filip/composition`).bodyFatPercent).toBeNull();
     });
   });
 
@@ -198,8 +283,8 @@ describe('MqttExporter', () => {
       const exporter = new MqttExporter(config);
       await exporter.export(samplePayload, { timestamp: MEASURED_AT });
 
-      // 12 discovery topics + 1 status publish + 1 data topic = 14 publishAsync calls
-      expect(fakeMqtt.publishAsync).toHaveBeenCalledTimes(14);
+      // 12 discovery topics + 1 status publish + 3 data messages = 16 publishAsync calls
+      expect(fakeMqtt.publishAsync).toHaveBeenCalledTimes(16);
 
       // First call should be a discovery config topic
       const firstCall = fakeMqtt.publishAsync.mock.calls[0];
@@ -211,10 +296,10 @@ describe('MqttExporter', () => {
       expect(statusCall[0]).toBe('scale/body-composition/status');
       expect(statusCall[1]).toBe('online');
 
-      // Last call should be the actual data
-      const lastCall = fakeMqtt.publishAsync.mock.calls[13];
-      expect(lastCall[0]).toBe('scale/body-composition');
-      expect(lastCall[1]).toBe(STATE_JSON);
+      // Then the weight, the composition and the combined message
+      const dataTopics = fakeMqtt.publishAsync.mock.calls.slice(13).map((c: unknown[]) => c[0]);
+      expect(dataTopics).toEqual([`${BASE}/weight`, `${BASE}/composition`, BASE]);
+      expect(fakeMqtt.publishAsync.mock.calls[15][1]).toBe(STATE_JSON);
     });
 
     it('adds a Last Weigh-in timestamp sensor, the only one without a state class', async () => {
@@ -233,7 +318,7 @@ describe('MqttExporter', () => {
       expect(sensor).toMatchObject({
         name: 'Last Weigh-in',
         unique_id: 'ble-scale-sync_timestamp',
-        state_topic: 'scale/body-composition',
+        state_topic: 'scale/body-composition/weight',
         value_template: '{{ value_json.timestamp }}',
         device_class: 'timestamp',
         availability: [{ topic: 'scale/body-composition/status' }],
@@ -272,7 +357,7 @@ describe('MqttExporter', () => {
       expect(payload).toMatchObject({
         name: 'Weight',
         unique_id: 'ble-scale-sync_weight',
-        state_topic: 'scale/body-composition',
+        state_topic: 'scale/body-composition/weight',
         value_template: '{{ value_json.weight }}',
         state_class: 'measurement',
         unit_of_measurement: 'kg',
@@ -300,7 +385,7 @@ describe('MqttExporter', () => {
         (c: unknown[]) => c[0] === 'homeassistant/sensor/ble-scale-sync/bmi/config',
       );
       const payload = JSON.parse(bmiCall![1] as string);
-      expect(payload.state_topic).toBe('home/my-scale');
+      expect(payload.state_topic).toBe('home/my-scale/weight');
     });
 
     it('does not publish discovery when haDiscovery is false', async () => {
@@ -308,9 +393,9 @@ describe('MqttExporter', () => {
       const exporter = new MqttExporter(config);
       await exporter.export(samplePayload);
 
-      // Only the data publish, no discovery
-      expect(fakeMqtt.publishAsync).toHaveBeenCalledTimes(1);
-      expect(fakeMqtt.publishAsync.mock.calls[0][0]).toBe('scale/body-composition');
+      // Only the three data messages, no discovery
+      const topics = fakeMqtt.publishAsync.mock.calls.map((c: unknown[]) => c[0]);
+      expect(topics).toEqual([`${BASE}/weight`, `${BASE}/composition`, BASE]);
     });
 
     it('shares device object across all discovery payloads', async () => {
@@ -495,19 +580,19 @@ describe('MqttExporter', () => {
           .filter((m) => m.includes('Published HA discovery'));
       }
 
-      it('publishes its sensor with a payload that has it: 13 configs, status, data', async () => {
+      it('publishes its sensor with a payload that has it: 13 configs, status, 3 messages', async () => {
         const log = vi.spyOn(console, 'log').mockImplementation(() => {});
         try {
           const exporter = new MqttExporter({ ...defaultConfig, haDiscovery: true });
           const data = { ...samplePayload, skeletalMusclePercent: 47.8 };
           await exporter.export(data, { timestamp: MEASURED_AT });
 
-          expect(fakeMqtt.publishAsync).toHaveBeenCalledTimes(15);
+          expect(fakeMqtt.publishAsync).toHaveBeenCalledTimes(17);
           const sensor = discovery().get(SKELETAL_TOPIC);
           expect(sensor).toEqual({
             name: 'Skeletal Muscle',
             unique_id: 'ble-scale-sync_skeletalMusclePercent',
-            state_topic: 'scale/body-composition',
+            state_topic: 'scale/body-composition/composition',
             value_template:
               "{{ value_json.skeletalMusclePercent if value_json.skeletalMusclePercent is defined else 'None' }}",
             state_class: 'measurement',
@@ -517,8 +602,8 @@ describe('MqttExporter', () => {
             icon: 'mdi:arm-flex',
             suggested_display_precision: 1,
           });
-          const state = JSON.parse(fakeMqtt.publishAsync.mock.calls[14][1] as string);
-          expect(state.skeletalMusclePercent).toBe(47.8);
+          expect(published(`${BASE}/composition`).skeletalMusclePercent).toBe(47.8);
+          expect(published(`${BASE}/weight`)).not.toHaveProperty('skeletalMusclePercent');
           expect(discoveryLog(log)).toEqual([
             expect.stringContaining('Published HA discovery for 13 sensors.'),
           ]);
@@ -547,15 +632,15 @@ describe('MqttExporter', () => {
           const data = { ...samplePayload, skeletalMusclePercent: 47.8, ...segments };
           await exporter.export(data, { timestamp: MEASURED_AT });
 
-          // 12 + skeletal + 10 segments, status, data.
-          expect(fakeMqtt.publishAsync).toHaveBeenCalledTimes(25);
+          // 12 + skeletal + 10 segments, status, 3 data messages.
+          expect(fakeMqtt.publishAsync).toHaveBeenCalledTimes(27);
           const configs = discovery();
           expect(
             configs.get('homeassistant/sensor/ble-scale-sync/impedanceLeftArm100kHz/config'),
           ).toEqual({
             name: 'Impedance Left Arm 100 kHz',
             unique_id: 'ble-scale-sync_impedanceLeftArm100kHz',
-            state_topic: 'scale/body-composition',
+            state_topic: 'scale/body-composition/composition',
             value_template:
               "{{ value_json.impedanceLeftArm100kHz if value_json.impedanceLeftArm100kHz is defined else 'None' }}",
             state_class: 'measurement',
@@ -587,7 +672,7 @@ describe('MqttExporter', () => {
           const exporter = new MqttExporter({ ...defaultConfig, haDiscovery: true });
           await exporter.export(samplePayload, { timestamp: MEASURED_AT });
 
-          expect(fakeMqtt.publishAsync).toHaveBeenCalledTimes(14);
+          expect(fakeMqtt.publishAsync).toHaveBeenCalledTimes(16);
           const configs = discovery();
           expect(configs.has(SKELETAL_TOPIC)).toBe(false);
           expect([...configs.values()].map((c) => c.value_template).sort()).toEqual(

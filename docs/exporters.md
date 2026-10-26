@@ -9,21 +9,21 @@ Every reading goes to all enabled exporters in parallel. Exporters under `global
 
 A run reports an error only when every exporter fails. A failed export to a target that can record a past measurement is retried later ([`runtime.retry_failed_exports`](/guide/configuration#runtime)). A weigh-in the scale replays from its memory goes only to those targets too, see [Historical readings](#historical-readings).
 
-| Target                          | What it does                                           |
-| ------------------------------- | ------------------------------------------------------ |
-| [Garmin Connect](#garmin)       | Uploads weight and body composition, no phone app      |
-| [MQTT](#mqtt)                   | Home Assistant auto-discovery sensors, LWT             |
-| [InfluxDB](#influxdb)           | Time-series database (v2 and v3)                       |
-| [Webhook](#webhook)             | Any HTTP endpoint (n8n, Make, Zapier, custom APIs)     |
-| [Ntfy](#ntfy)                   | Push notification to phone or desktop                  |
-| [Telegram](#telegram)           | Message to a Telegram chat                             |
-| [File (CSV/JSONL)](#file)       | Appends readings to a local file                       |
-| [Strava](#strava)               | Updates the weight in your Strava athlete profile      |
-| [Intervals.icu](#intervals)     | Weight and body fat to Intervals.icu wellness          |
-| [Runalyze](#runalyze)           | Weight and body composition to Runalyze metrics        |
-| [Wger](#wger)                   | Weight and body composition to a Wger instance         |
-| [HealthLog](#healthlog)         | Weight and body composition to a HealthLog instance    |
-| [Dreeve](#dreeve)               | Weight to a self-hosted Dreeve instance                |
+| Target                      | What it does                                        |
+| --------------------------- | --------------------------------------------------- |
+| [Garmin Connect](#garmin)   | Uploads weight and body composition, no phone app   |
+| [MQTT](#mqtt)               | Home Assistant auto-discovery sensors, LWT          |
+| [InfluxDB](#influxdb)       | Time-series database (v2 and v3)                    |
+| [Webhook](#webhook)         | Any HTTP endpoint (n8n, Make, Zapier, custom APIs)  |
+| [Ntfy](#ntfy)               | Push notification to phone or desktop               |
+| [Telegram](#telegram)       | Message to a Telegram chat                          |
+| [File (CSV/JSONL)](#file)   | Appends readings to a local file                    |
+| [Strava](#strava)           | Updates the weight in your Strava athlete profile   |
+| [Intervals.icu](#intervals) | Weight and body fat to Intervals.icu wellness       |
+| [Runalyze](#runalyze)       | Weight and body composition to Runalyze metrics     |
+| [Wger](#wger)               | Weight and body composition to a Wger instance      |
+| [HealthLog](#healthlog)     | Weight and body composition to a HealthLog instance |
+| [Dreeve](#dreeve)           | Weight to a self-hosted Dreeve instance             |
 
 The [Renpho R-MSC04 extras](/guide/scales/renpho#r-msc04-morphoscan-nova), skeletal muscle percentage and segment impedances, reach MQTT, Webhook, File JSONL and InfluxDB with the weigh-ins that carry them. Ntfy and Telegram show only the skeletal muscle percentage; CSV and the other targets get the same fields for every scale.
 
@@ -31,14 +31,14 @@ The [Renpho R-MSC04 extras](/guide/scales/renpho#r-msc04-morphoscan-nova), skele
 
 Uploads weight and body composition to Garmin Connect through a Python helper that reuses cached login tokens. A standalone install needs Python 3.12 or newer; the Docker image and the Home Assistant add-on include it.
 
-| Field                | Required | Default            | Description                                                                                                                |
-| -------------------- | -------- | ------------------ | -------------------------------------------------------------------------------------------------------------------------- |
-| `email`              | Yes      | (none)             | Garmin account email                                                                                                       |
-| `password`           | Yes      | (none)             | Garmin account password                                                                                                    |
+| Field                | Required | Default            | Description                                                                                                                           |
+| -------------------- | -------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `email`              | Yes      | (none)             | Garmin account email                                                                                                                  |
+| `password`           | Yes      | (none)             | Garmin account password                                                                                                               |
 | `token_dir`          | No       | `~/.garmin_tokens` | Directory for cached login tokens. A relative path is relative to the directory of `config.yaml`; the wizard writes `./garmin-tokens` |
-| `weight_only`        | No       | `false`            | Upload the weight alone, leaving every derived metric unset                                                                |
-| `skip_metabolic_age` | No       | `false`            | Upload every metric except metabolic age                                                                                   |
-| `upload_timeout_sec` | No       | `180`              | Seconds one upload attempt may take before it is killed (10-900). Three attempts are made, 1 s and 2 s apart               |
+| `weight_only`        | No       | `false`            | Upload the weight alone, leaving every derived metric unset                                                                           |
+| `skip_metabolic_age` | No       | `false`            | Upload every metric except metabolic age                                                                                              |
+| `upload_timeout_sec` | No       | `180`              | Seconds one upload attempt may take before it is killed (10-900). Three attempts are made, 1 s and 2 s apart                          |
 
 ```yaml
 global_exporters:
@@ -114,7 +114,15 @@ global_exporters:
 
 ### Message
 
-Each weigh-in is one message on `<topic>/<user slug>`. Masses are in kg whatever `scale.weight_unit` is:
+Each weigh-in goes out as three messages, published in this order:
+
+| Topic                             | Content                                                                     |
+| --------------------------------- | --------------------------------------------------------------------------- |
+| `<topic>/<user slug>/weight`      | `timestamp`, `weight` and `bmi`                                             |
+| `<topic>/<user slug>/composition` | `timestamp` and every other value                                           |
+| `<topic>/<user slug>`             | Everything in one message, as in earlier versions, for existing automations |
+
+The Home Assistant sensors read the first two, so the weight reaches Home Assistant as a message of its own and a missing composition never holds it back. New setups should read those two; the combined message stays so that automations and manual sensors on `<topic>/<user slug>` keep working. Masses are in kg whatever `scale.weight_unit` is. The combined message:
 
 ```json
 {
@@ -133,13 +141,15 @@ Each weigh-in is one message on `<topic>/<user slug>`. Masses are in kg whatever
 }
 ```
 
-`timestamp` is when the weigh-in was measured, in ISO 8601 UTC: the scale's own time when it sends one, otherwise the time the reading reached the app. Weigh-ins a scale sends from its memory do not go to MQTT, so it is always the last live weigh-in.
+`timestamp` is in all three messages and is when the weigh-in was measured, in ISO 8601 UTC: the scale's own time when it sends one, otherwise the time the reading reached the app. Weigh-ins a scale sends from its memory do not go to MQTT, so it is always the last live weigh-in.
 
 The R-MSC04 extras are `skeletalMusclePercent` and ten segment impedances in ohm: `impedanceTrunk20kHz`, `impedanceTrunk100kHz`, and the same pairs for `LeftArm`, `RightArm`, `LeftLeg` and `RightLeg`. A key is in the message only when that weigh-in carries it.
 
 ### Home Assistant Sensors
 
-Discovery creates one device per user, with a sensor for weight, impedance, BMI, body fat, water, bone mass, muscle mass, visceral fat, physique rating, BMR, metabolic age and the time of the last weigh-in (**Last Weigh-in**). Each sensor has its own display precision.
+Discovery creates one device per user, with a sensor for weight, impedance, BMI, body fat, water, bone mass, muscle mass, visceral fat, physique rating, BMR, metabolic age and the time of the last weigh-in (**Last Weigh-in**). Weight, BMI and **Last Weigh-in** read the weight message and the others the composition message. Each sensor has its own display precision.
+
+Discovery points the sensors of an existing setup at the new topics the next time a weigh-in is exported; the entities, their IDs and their history stay.
 
 The R-MSC04 extras get sensors the first time a message carries them: **Skeletal Muscle**, and one per segment impedance (**Impedance Left Arm 20 kHz** and so on), which are diagnostic and disabled until you enable them on the device page. A later message without one of these keys shows its sensor as unknown. With `retain: false` such a sensor can miss the value of the weigh-in that created it, because Home Assistant subscribes to its topic only once the sensor exists.
 
@@ -192,13 +202,13 @@ global_exporters:
 
 Writes each weigh-in in line protocol, with floats at 2 decimal places and integers with the `i` suffix. One exporter covers InfluxDB v2 and v3, through the `/api/v2/write` endpoint both have.
 
-| Field         | Required | Default            | Description                                   |
-| ------------- | -------- | ------------------ | --------------------------------------------- |
-| `url`         | Yes      | (none)             | InfluxDB server URL                           |
-| `token`       | Yes      | (none)             | API token with write access                   |
-| `org`         | v2 only  | (none)             | Organization name. Leave it out on v3         |
-| `bucket`      | Yes      | (none)             | Bucket name on v2, database name on v3        |
-| `measurement` | No       | `body_composition` | Measurement name                              |
+| Field         | Required | Default            | Description                            |
+| ------------- | -------- | ------------------ | -------------------------------------- |
+| `url`         | Yes      | (none)             | InfluxDB server URL                    |
+| `token`       | Yes      | (none)             | API token with write access            |
+| `org`         | v2 only  | (none)             | Organization name. Leave it out on v3  |
+| `bucket`      | Yes      | (none)             | Bucket name on v2, database name on v3 |
+| `measurement` | No       | `body_composition` | Measurement name                       |
 
 InfluxDB v2:
 
@@ -298,11 +308,11 @@ A CSV file gets a header row on the first write; JSONL gets one JSON object per 
 
 Updates the weight in your Strava athlete profile. Requires a Strava API application.
 
-| Field           | Required | Default           | Description                                                                      |
-| --------------- | -------- | ----------------- | -------------------------------------------------------------------------------- |
-| `client_id`     | Yes      | (none)            | Strava API application client ID                                                 |
-| `client_secret` | Yes      | (none)            | Strava API application client secret                                             |
-| `token_dir`     | No       | `./strava-tokens` | Directory for cached OAuth tokens, relative to the directory of `config.yaml`    |
+| Field           | Required | Default           | Description                                                                   |
+| --------------- | -------- | ----------------- | ----------------------------------------------------------------------------- |
+| `client_id`     | Yes      | (none)            | Strava API application client ID                                              |
+| `client_secret` | Yes      | (none)            | Strava API application client secret                                          |
+| `token_dir`     | No       | `./strava-tokens` | Directory for cached OAuth tokens, relative to the directory of `config.yaml` |
 
 ```yaml
 users:
@@ -349,10 +359,10 @@ The container that runs the app needs the same `strava-tokens` mount, as in the 
 
 Writes weight and body fat to the [Intervals.icu](https://intervals.icu) wellness record of the day.
 
-| Field        | Required | Default | Description                                      |
-| ------------ | -------- | ------- | ------------------------------------------------ |
-| `athlete_id` | Yes      | (none)  | Intervals.icu athlete ID, for example `i123456`  |
-| `api_key`    | Yes      | (none)  | API key from **Settings** > **Developer**           |
+| Field        | Required | Default | Description                                     |
+| ------------ | -------- | ------- | ----------------------------------------------- |
+| `athlete_id` | Yes      | (none)  | Intervals.icu athlete ID, for example `i123456` |
+| `api_key`    | Yes      | (none)  | API key from **Settings** > **Developer**       |
 
 ```yaml
 users:
@@ -369,9 +379,9 @@ The key is sent with HTTP Basic auth. The day is taken in your Intervals.icu tim
 
 Writes weight and body composition to the `bodyComposition` health metric of [Runalyze](https://runalyze.com).
 
-| Field   | Required | Default | Description                                                  |
-| ------- | -------- | ------- | ------------------------------------------------------------ |
-| `token` | Yes      | (none)  | Personal API token from **Settings** > **Personal API**         |
+| Field   | Required | Default | Description                                             |
+| ------- | -------- | ------- | ------------------------------------------------------- |
+| `token` | Yes      | (none)  | Personal API token from **Settings** > **Personal API** |
 
 ```yaml
 users:
@@ -389,11 +399,11 @@ Each reading carries its exact time, so a [stored weigh-in](#historical-readings
 
 Writes weight and body composition to [Wger](https://wger.de), on wger.de or your own instance.
 
-| Field               | Required | Default | Description                                                         |
-| ------------------- | -------- | ------- | ------------------------------------------------------------------- |
-| `base_url`          | Yes      | (none)  | Wger instance URL, for example `https://wger.de`                    |
-| `token`             | Yes      | (none)  | Permanent API key from `<base_url>/en/user/api-key`                 |
-| `sync_measurements` | No       | `true`  | Also send body fat, water, muscle and bone as custom measurements   |
+| Field               | Required | Default | Description                                                       |
+| ------------------- | -------- | ------- | ----------------------------------------------------------------- |
+| `base_url`          | Yes      | (none)  | Wger instance URL, for example `https://wger.de`                  |
+| `token`             | Yes      | (none)  | Permanent API key from `<base_url>/en/user/api-key`               |
+| `sync_measurements` | No       | `true`  | Also send body fat, water, muscle and bone as custom measurements |
 
 ```yaml
 users:
@@ -412,11 +422,11 @@ Wger stores the weight in the unit of your Wger profile, so the exporter reads `
 
 Writes weight and body composition to [HealthLog](https://github.com/MBombeck/HealthLog), a self-hosted personal health record.
 
-| Field               | Required | Default | Description                                                   |
-| ------------------- | -------- | ------- | ------------------------------------------------------------- |
+| Field               | Required | Default | Description                                                     |
+| ------------------- | -------- | ------- | --------------------------------------------------------------- |
 | `base_url`          | Yes      | (none)  | HealthLog instance URL, for example `https://healthlog.example` |
-| `token`             | Yes      | (none)  | Measurement ingest token from **Settings** > **API & Tokens**    |
-| `sync_measurements` | No       | `true`  | Also send body fat, body water, muscle, bone and visceral fat |
+| `token`             | Yes      | (none)  | Measurement ingest token from **Settings** > **API & Tokens**   |
+| `sync_measurements` | No       | `true`  | Also send body fat, body water, muscle, bone and visceral fat   |
 
 ```yaml
 users:
@@ -431,14 +441,14 @@ Create the token in HealthLog under **Settings** > **API & Tokens** > **Measurem
 
 Each value is a separate measurement with the reading's exact time, so a [stored weigh-in](#historical-readings) lands at its own date and time. Values are sent in the unit HealthLog expects for the type:
 
-| HealthLog type     | Sent as                                   | HealthLog accepts |
-| ------------------ | ----------------------------------------- | ----------------- |
-| `WEIGHT`           | kg                                        | 1-500             |
-| `BODY_FAT`         | percent                                   | 1-80              |
-| `TOTAL_BODY_WATER` | kg, weight x body water percent           | 5-100             |
-| `MUSCLE_MASS`      | kg                                        | 5-200             |
-| `BONE_MASS`        | kg                                        | 0.5-8             |
-| `VISCERAL_FAT`     | rating                                    | 0-30              |
+| HealthLog type     | Sent as                         | HealthLog accepts |
+| ------------------ | ------------------------------- | ----------------- |
+| `WEIGHT`           | kg                              | 1-500             |
+| `BODY_FAT`         | percent                         | 1-80              |
+| `TOTAL_BODY_WATER` | kg, weight x body water percent | 5-100             |
+| `MUSCLE_MASS`      | kg                              | 5-200             |
+| `BONE_MASS`        | kg                              | 0.5-8             |
+| `VISCERAL_FAT`     | rating                          | 0-30              |
 
 Everything after the weight needs `sync_measurements`. On a scale without impedance these are the BMI-based estimates from [Body Composition](/body-composition). A value outside the accepted range, such as a visceral fat rating above 30, is not sent. A failed body composition value is logged and does not fail the export; a failed weight does. HealthLog answers a repeated value with `409`, which the exporter counts as already recorded.
 
@@ -448,9 +458,9 @@ The startup healthcheck calls the public `/api/version` endpoint, so it confirms
 
 Writes the weight to [Dreeve](https://github.com/dreeveapp/dreeve), a self-hosted sports dashboard. Requires Dreeve 5.3.3 or newer. Dreeve has no place for body composition, so only the weight is sent.
 
-| Field         | Required | Default | Description                                                                   |
-| ------------- | -------- | ------- | ----------------------------------------------------------------------------- |
-| `base_url`    | Yes      | (none)  | Your Dreeve `APP_URL`, for example `https://dreeve.example`                   |
+| Field         | Required | Default | Description                                                                         |
+| ------------- | -------- | ------- | ----------------------------------------------------------------------------------- |
+| `base_url`    | Yes      | (none)  | Your Dreeve `APP_URL`, for example `https://dreeve.example`                         |
 | `token`       | Yes      | (none)  | API key (`drv_...`) from **Settings** > **Security** > **API access**               |
 | `unit_system` | Yes      | (none)  | `metric` or `imperial`, the same as **Settings** > **Appearance** > **Unit system** |
 
@@ -479,16 +489,16 @@ The startup healthcheck calls `/api/v1/status` with the key. A `401` means a wro
 
 With [`estimate_body_composition: false`](/guide/configuration#users), a weigh-in the scale measured no body composition for has no body fat, water, bone mass, muscle mass, visceral fat or physique rating. Weight, impedance, BMI, BMR and metabolic age are there as usual. Each exporter leaves the missing values out its own way:
 
-| Exporter                  | Missing values                                                                                  |
-| ------------------------- | ----------------------------------------------------------------------------------------------- |
-| Garmin Connect            | Not set; Garmin records the weight, BMI, BMR and metabolic age                                  |
-| MQTT                      | `null` in the message; the Home Assistant sensors show unknown until the next measured weigh-in |
-| Webhook, File JSONL       | `null`                                                                                          |
-| File CSV                  | Empty cells                                                                                     |
-| InfluxDB                  | No field                                                                                        |
-| Ntfy, Telegram            | Left out of the message                                                                         |
-| Intervals.icu, Runalyze, Wger, HealthLog | Only the weight is sent                                                          |
-| Strava, Dreeve            | No change: they only receive the weight                                                         |
+| Exporter                                 | Missing values                                                                                                            |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Garmin Connect                           | Not set; Garmin records the weight, BMI, BMR and metabolic age                                                            |
+| MQTT                                     | `null` in the composition and combined messages; the Home Assistant sensors show unknown until the next measured weigh-in |
+| Webhook, File JSONL                      | `null`                                                                                                                    |
+| File CSV                                 | Empty cells                                                                                                               |
+| InfluxDB                                 | No field                                                                                                                  |
+| Ntfy, Telegram                           | Left out of the message                                                                                                   |
+| Intervals.icu, Runalyze, Wger, HealthLog | Only the weight is sent                                                                                                   |
+| Strava, Dreeve                           | No change: they only receive the weight                                                                                   |
 
 ## Secrets
 

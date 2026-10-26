@@ -138,7 +138,7 @@ describe('MqttExporter multi-user', () => {
         (c[0] as string).includes('ble-scale-sync-dad/weight/config'),
       );
       const payload = JSON.parse(weightCall![1] as string);
-      expect(payload.state_topic).toBe('scale/body-composition/dad');
+      expect(payload.state_topic).toBe('scale/body-composition/dad/weight');
     });
 
     it('uses per-user availability topic in discovery', async () => {
@@ -174,7 +174,7 @@ describe('MqttExporter multi-user', () => {
       const payload = JSON.parse(timestampCall![1] as string);
       expect(payload).toMatchObject({
         unique_id: 'ble-scale-sync-dad_timestamp',
-        state_topic: 'scale/body-composition/dad',
+        state_topic: 'scale/body-composition/dad/weight',
         availability: [{ topic: 'scale/body-composition/dad/status' }],
         device: { identifiers: ['ble-scale-sync-dad'], name: 'BLE Scale (Dad)' },
       });

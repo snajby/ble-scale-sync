@@ -113,7 +113,8 @@ describe('a failed disconnect is not a failed export', () => {
     const result = await exporter.export(payload);
 
     expect(result.success).toBe(true);
-    expect(fakeMqtt.publishAsync).toHaveBeenCalledTimes(1);
+    // One reading is three messages (weight, composition, combined), sent once.
+    expect(fakeMqtt.publishAsync).toHaveBeenCalledTimes(3);
   });
 
   it('forces the client down when the graceful close is refused', async () => {
