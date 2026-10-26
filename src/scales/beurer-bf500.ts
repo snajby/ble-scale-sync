@@ -164,6 +164,8 @@ export class BeurerBf500Adapter implements ScaleAdapterCore, GattWiring, MultiCh
    */
   private markAtSessionStart = 0;
   private readonly reportedThisSession = new Set<number>();
+  /** users[].beurer_skip_replays: false reports every replay of a stored weigh-in. */
+  private skipReplays = true;
   /** A replay was skipped this session, so "weight but no composition" is not true. */
   private replaySkipped = false;
 
@@ -217,6 +219,7 @@ export class BeurerBf500Adapter implements ScaleAdapterCore, GattWiring, MultiCh
     this.pin = pin;
     this.userIndex = ctx.scaleAuth?.userIndex ?? 1;
     this.registerNewUser = ctx.scaleAuth?.registerNewUser === true;
+    this.skipReplays = ctx.scaleAuth?.skipReplays !== false;
 
     await ctx.write(CHR_CURRENT_TIME, this.buildCurrentTime(), true);
 
@@ -640,7 +643,10 @@ export class BeurerBf500Adapter implements ScaleAdapterCore, GattWiring, MultiCh
       if (this.markAtSessionStart > Date.now() + MARK_FUTURE_TOLERANCE_MS) {
         this.markAtSessionStart = 0;
       }
-      if (stamp <= this.markAtSessionStart || this.reportedThisSession.has(stamp)) {
+      if (
+        this.skipReplays &&
+        (stamp <= this.markAtSessionStart || this.reportedThisSession.has(stamp))
+      ) {
         this.replaySkipped = true;
         bleLog.debug(
           `Beurer BF500: skipping the stored weigh-in of ${this.cachedTimestamp?.toISOString()}, ` +

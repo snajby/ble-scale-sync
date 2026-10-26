@@ -381,6 +381,14 @@ export const UserSchema = z.object({
    */
   beurer_register_new_user: z.boolean().optional(),
   /**
+   * Beurer BF500: skip a stored weigh-in that was already reported. Default
+   * true. The scale replays its last record on every connect and never clears
+   * it, so interval polling would export the same weigh-in each time. Set it to
+   * false to get every replay, for example when the scale clock is wrong and
+   * its timestamps cannot be trusted.
+   */
+  beurer_skip_replays: z.boolean().optional(),
+  /**
    * false: a weigh-in the scale measured no body composition for (no usable
    * impedance, no body fat of its own, or one the adapter did not use) exports
    * no body fat, water, bone mass, muscle mass, visceral fat or physique rating

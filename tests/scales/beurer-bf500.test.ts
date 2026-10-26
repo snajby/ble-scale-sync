@@ -174,6 +174,21 @@ describe('BeurerBf500Adapter', () => {
       }
     });
 
+    it('reports every replay when beurer_skip_replays is false', async () => {
+      hist();
+      try {
+        const a = new BeurerBf500Adapter();
+        await a.onConnected(makeCtx({ scaleAuth: { pin: 1234, skipReplays: false } }));
+        a.parseCharNotification(CHR_WEIGHT, WSS(44));
+        expect(a.parseCharNotification(CHR_BODYCOMP, BCS)).not.toBeNull();
+        a.onSessionStart();
+        a.parseCharNotification(CHR_WEIGHT, WSS(44));
+        expect(a.parseCharNotification(CHR_BODYCOMP, BCS)).not.toBeNull();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it('reports several stored weigh-ins of one session whatever order they arrive in', () => {
       hist();
       try {

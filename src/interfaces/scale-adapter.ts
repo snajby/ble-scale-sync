@@ -261,6 +261,11 @@ export interface ScaleAuth {
    * record to the device and the slots are finite.
    */
   registerNewUser?: boolean;
+  /**
+   * Beurer BF500: false reports a stored weigh-in again on every connect.
+   * Undefined means true: a replay of an already reported record is skipped.
+   */
+  skipReplays?: boolean;
 }
 
 export interface ConnectionContext {
