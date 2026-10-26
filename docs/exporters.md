@@ -95,7 +95,7 @@ Publishes each weigh-in as JSON to an MQTT broker, with Home Assistant auto-disc
 | Field            | Required | Default                  | Description                                                              |
 | ---------------- | -------- | ------------------------ | ------------------------------------------------------------------------ |
 | `broker_url`     | Yes      | (none)                   | `mqtt://host:1883`, or `mqtts://` for TLS                                |
-| `topic`          | No       | `scale/body-composition` | Base topic; readings go to `<topic>/<user slug>`, with a single user too |
+| `topic`          | No       | `scale/body-composition` | Base topic; readings go to `<topic>/<user slug>/weight` and `/composition`, with a single user too |
 | `qos`            | No       | `1`                      | QoS level (0, 1 or 2)                                                    |
 | `retain`         | No       | `true`                   | Retain the last message                                                  |
 | `username`       | No       | (none)                   | Broker username                                                          |
@@ -114,34 +114,55 @@ global_exporters:
 
 ### Message
 
-Each weigh-in is one message on `<topic>/<user slug>`. Masses are in kg whatever `scale.weight_unit` is:
+Each weigh-in goes out as up to two messages, the weight first. Masses are in kg whatever `scale.weight_unit` is:
+
+| Topic                             | Content                                                                                      | Sent                                           |
+| --------------------------------- | -------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| `<topic>/<user slug>/weight`      | `timestamp`, `weight`, `bmi`, `bmr` and `metabolicAge`                                       | Every weigh-in                                 |
+| `<topic>/<user slug>/composition` | `timestamp`, `impedance`, the body composition values and the R-MSC04 extras, when it has them | When a body composition was measured or estimated |
+
+BMI, BMR and metabolic age come from the weight and the user's profile, so they are always in the weight message. A weigh-in the scale measured no body composition for, with [`estimate_body_composition: false`](/guide/configuration#users) or because the user stepped off before the impedance measurement ended, sends the weight message only. The composition sensors in Home Assistant then keep the values of the last weigh-in that had one.
+
+The weight message:
 
 ```json
 {
   "timestamp": "2026-10-20T21:30:00.000Z",
   "weight": 80,
-  "impedance": 500,
   "bmi": 23.9,
-  "bodyFatPercent": 18.5,
-  "waterPercent": 55.2,
-  "boneMass": 3.1,
-  "muscleMass": 62.4,
-  "visceralFat": 8,
-  "physiqueRating": 5,
   "bmr": 1750,
   "metabolicAge": 30
 }
 ```
 
-`timestamp` is when the weigh-in was measured, in ISO 8601 UTC: the scale's own time when it sends one, otherwise the time the reading reached the app. Weigh-ins a scale sends from its memory do not go to MQTT, so it is always the last live weigh-in.
+The composition message:
+
+```json
+{
+  "timestamp": "2026-10-20T21:30:00.000Z",
+  "impedance": 500,
+  "bodyFatPercent": 18.5,
+  "waterPercent": 55.2,
+  "boneMass": 3.1,
+  "muscleMass": 62.4,
+  "visceralFat": 8,
+  "physiqueRating": 5
+}
+```
+
+Earlier versions published everything in one message on `<topic>/<user slug>`; that message is gone. Automations and sensors that read it need to read the weight message for `weight`, `bmi`, `bmr` and `metabolicAge`, and the composition message for the rest.
+
+`timestamp` is in both messages and is when the weigh-in was measured, in ISO 8601 UTC: the scale's own time when it sends one, otherwise the time the reading reached the app. Weigh-ins a scale sends from its memory do not go to MQTT, so it is always the last live weigh-in.
 
 The R-MSC04 extras are `skeletalMusclePercent` and ten segment impedances in ohm: `impedanceTrunk20kHz`, `impedanceTrunk100kHz`, and the same pairs for `LeftArm`, `RightArm`, `LeftLeg` and `RightLeg`. A key is in the message only when that weigh-in carries it.
 
 ### Home Assistant Sensors
 
-Discovery creates one device per user, with a sensor for weight, impedance, BMI, body fat, water, bone mass, muscle mass, visceral fat, physique rating, BMR, metabolic age and the time of the last weigh-in (**Last Weigh-in**). Each sensor has its own display precision.
+Discovery creates one device per user, with a sensor for weight, impedance, BMI, body fat, water, bone mass, muscle mass, visceral fat, physique rating, BMR, metabolic age and the time of the last weigh-in (**Last Weigh-in**). Weight, BMI, BMR, metabolic age and **Last Weigh-in** read the weight message and the others the composition message. Each sensor has its own display precision.
 
-The R-MSC04 extras get sensors the first time a message carries them: **Skeletal Muscle**, and one per segment impedance (**Impedance Left Arm 20 kHz** and so on), which are diagnostic and disabled until you enable them on the device page. A later message without one of these keys shows its sensor as unknown. With `retain: false` such a sensor can miss the value of the weigh-in that created it, because Home Assistant subscribes to its topic only once the sensor exists.
+Discovery points the sensors of an existing setup at the new topics the next time a weigh-in is exported; the entities, their IDs and their history stay.
+
+The R-MSC04 extras get sensors the first time a message carries them: **Skeletal Muscle**, and one per segment impedance (**Impedance Left Arm 20 kHz** and so on), which are diagnostic and disabled until you enable them on the device page. A later composition message without one of these keys shows its sensor as unknown. With `retain: false` such a sensor can miss the value of the weigh-in that created it, because Home Assistant subscribes to its topic only once the sensor exists.
 
 Availability uses an MQTT last will: when the app loses the broker without a clean shutdown, the broker publishes `offline` and Home Assistant shows the sensors as unavailable until the app reconnects.
 
@@ -164,14 +185,14 @@ Such a trigger skips a weigh-in made while Home Assistant was down. With `ha_dis
 mqtt:
   sensor:
     - name: 'Last Weigh-in'
-      state_topic: 'scale/body-composition/alice' # <topic>/<user slug>
+      state_topic: 'scale/body-composition/alice/weight' # <topic>/<user slug>/weight
       value_template: '{{ value_json.timestamp }}'
       device_class: timestamp
 ```
 
 ## Webhook {#webhook}
 
-Sends each weigh-in as JSON to any HTTP endpoint, such as n8n, Make, Zapier or your own API. The body is the [MQTT message](#message) without `timestamp`, plus `user_name` and `user_slug`.
+Sends each weigh-in as JSON to any HTTP endpoint, such as n8n, Make, Zapier or your own API. The body is one JSON object with every value of the weigh-in, as listed under the [MQTT messages](#message) (without `timestamp`), plus `user_name` and `user_slug`.
 
 | Field     | Required | Default | Description                                                                  |
 | --------- | -------- | ------- | ---------------------------------------------------------------------------- |
@@ -482,7 +503,7 @@ With [`estimate_body_composition: false`](/guide/configuration#users), a weigh-i
 | Exporter                  | Missing values                                                                                  |
 | ------------------------- | ----------------------------------------------------------------------------------------------- |
 | Garmin Connect            | Not set; Garmin records the weight, BMI, BMR and metabolic age                                  |
-| MQTT                      | `null` in the message; the Home Assistant sensors show unknown until the next measured weigh-in |
+| MQTT                      | No composition message; the Home Assistant composition sensors keep the values of the last weigh-in that had one |
 | Webhook, File JSONL       | `null`                                                                                          |
 | File CSV                  | Empty cells                                                                                     |
 | InfluxDB                  | No field                                                                                        |

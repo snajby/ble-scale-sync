@@ -113,6 +113,7 @@ describe('a failed disconnect is not a failed export', () => {
     const result = await exporter.export(payload);
 
     expect(result.success).toBe(true);
+    // This payload has no body composition, so its one message (the weight) is sent once.
     expect(fakeMqtt.publishAsync).toHaveBeenCalledTimes(1);
   });
 

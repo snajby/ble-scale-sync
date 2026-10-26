@@ -125,6 +125,30 @@ type CoveredMetricKey = (typeof HA_METRICS)[number]['key'];
 const _haMetricsAreComplete: Record<Exclude<keyof MqttStatePayload, CoveredMetricKey>, never> = {};
 void _haMetricsAreComplete;
 
+/**
+ * What every weigh-in has: the weight and what follows from the weight and the
+ * user's profile alone (BMI, BMR, metabolic age; none of them is ever null).
+ * They (and the timestamp sensor) read their own message, `<topic>/weight`, so
+ * Home Assistant gets the weight on its own and a missing or late composition
+ * never holds the weight sensor back.
+ */
+const WEIGHT_SET: readonly (keyof MqttStatePayload)[] = ['weight', 'bmi', 'bmr', 'metabolicAge'];
+
+/** The values the scale (or the BMI estimate) supplies for a measured composition. */
+const COMPOSITION_VALUES: readonly (keyof BodyComposition)[] = [
+  'bodyFatPercent',
+  'waterPercent',
+  'boneMass',
+  'muscleMass',
+  'visceralFat',
+  'physiqueRating',
+];
+
+/** The set of the metric's own message: the topic suffix its sensor reads. */
+function messageFor(key: keyof MqttStatePayload): 'weight' | 'composition' {
+  return key === 'timestamp' || WEIGHT_SET.includes(key) ? 'weight' : 'composition';
+}
+
 export const mqttSchema: ExporterSchema = {
   name: 'mqtt',
   displayName: 'MQTT',
@@ -318,7 +342,7 @@ export class MqttExporter implements Exporter {
       const payload: Record<string, unknown> = {
         name: metric.name,
         unique_id: `${deviceId}_${metric.key}`,
-        state_topic: dataTopic,
+        state_topic: `${dataTopic}/${messageFor(metric.key)}`,
         // HA renders a missing key as '' and logs a warning for it; 'None' is
         // its own word for unknown.
         value_template: metric.optional
@@ -389,7 +413,22 @@ export class MqttExporter implements Exporter {
       timestamp: (context?.timestamp ?? new Date()).toISOString(),
       ...data,
     };
-    const payload = JSON.stringify(state);
+    // The weight and the composition are separate messages, each with the same
+    // timestamp, so Home Assistant has the weight at once, whatever the scale
+    // measures after it. A weigh-in without a measured composition (the user
+    // stepped off early, `estimate_body_composition: false`) sends the weight
+    // message only, and the composition sensors keep the last measured values.
+    const hasComposition = COMPOSITION_VALUES.some((key) => data[key] != null);
+    const pick = (set: 'weight' | 'composition'): string =>
+      JSON.stringify(
+        Object.fromEntries(
+          Object.entries(state).filter(
+            ([key]) => key === 'timestamp' || messageFor(key as keyof MqttStatePayload) === set,
+          ),
+        ),
+      );
+    const messages: Array<[string, string]> = [[`${dataTopic}/weight`, pick('weight')]];
+    if (hasComposition) messages.push([`${dataTopic}/composition`, pick('composition')]);
 
     return withRetry(
       async () => {
@@ -417,11 +456,14 @@ export class MqttExporter implements Exporter {
           }
 
           await withTimeout(
-            client.publishAsync(dataTopic, payload, { qos, retain }),
+            Promise.all(messages.map(([t, p]) => client.publishAsync(t, p, { qos, retain }))),
             OPERATION_TIMEOUT_MS,
             'MQTT publish timed out',
           );
-          log.info(`Published to ${dataTopic} (qos=${qos}, retain=${retain}).`);
+          log.info(
+            `Published ${messages.map(([t]) => t.slice(dataTopic.length + 1)).join(' and ')} ` +
+              `under ${dataTopic} (qos=${qos}, retain=${retain}).`,
+          );
           return { success: true };
         } finally {
           // endQuietly never throws, so a failed disconnect cannot turn a
